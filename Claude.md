@@ -33,10 +33,10 @@ Implement the core functionality for calculating and representing diffs between 
   - [x] Add word-level and character-level diffing options
   - [x] Create configurable diffing API (algorithm, timeout, whitespace handling)
   - [x] Add comprehensive examples demonstrating features
-  - [ ] Support for binary files
+  - [ ] Support for binary files (later)
 
 - [ ] **Step 4:** Improve text representation
-  - [ ] Better handling of different line ending types
+  - [x] Better handling of different line ending types (LF, CRLF, CR)
   - [ ] Efficient storage and manipulation of text
   - [ ] Unicode support improvements
 
@@ -114,13 +114,13 @@ Optimize the performance of both the core library and the UI.
 ## Current Status
 
 - **Phase 1 (Core Diff Library)**: 3/5 steps completed
-- **Phase 2 (Git Integration)**: 2/3 steps completed 
+- **Phase 2 (Git Integration)**: 2/3 steps completed
 - **Phase 3 (UI Integration)**: Not started (gpui dependency removed)
 - **Phase 4 (Performance Optimization)**: Partially implemented (parallelization in diff)
 
 ## Next Steps
 
-1. Work on Phase 1, Step 4: Improve text representation
+1. Continue work on Phase 1, Step 4: Improve text representation (efficient storage, Unicode support)
 2. Continue work on Phase 2, Step 3: Handle advanced Git scenarios
 3. Decide on UI approach (Phase 3) - gpui removed as dependency
 
@@ -131,8 +131,13 @@ Optimize the performance of both the core library and the UI.
    - Implemented word-level and character-level diffing options
    - Created configurable API with algorithm selection, timeout, whitespace handling
    - Added comprehensive examples demonstrating different features
-   
-2. Added utility for generating large test files:
+
+2. Improved text representation:
+   - Added configurable line ending normalization (LF, CRLF, CR)
+   - Implemented automatic detection of dominant line ending format
+   - Created examples for demonstrating line ending handling
+
+3. Added utility for generating large test files:
    - Created generate_large_files.rs tool for test file generation with controlled modifications
-   
-3. Removed gpui dependency to simplify architecture
+
+4. Removed gpui dependency to simplify architecture
