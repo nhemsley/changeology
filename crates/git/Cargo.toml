@@ -1,0 +1,20 @@
+[package]
+name = "git"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+# Git interaction via libgit2
+git2.workspace = true
+# Error handling
+anyhow.workspace = true
+# Path manipulation
+pathdiff.workspace = true
+# More ergonomic derive macros
+derive_more.workspace = true
+# Path manipulation utilities
+path-clean.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

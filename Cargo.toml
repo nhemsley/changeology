@@ -1,14 +1,22 @@
 [workspace]
-members = ["crates/changeology"]
+members = [
+    "crates/changeology",
+    "crates/git"
+]
 default-members = ["crates/changeology"]
 resolver = "2"
 
 [workspace.dependencies]
 changeology = { path = "crates/changeology" }
+git = { path = "crates/git" }
 
+# External dependencies
 gpui = { git = "https://github.com/zed-industries/zed" }
-# gpui = { git = "https://github.com/zed-industries/zed" }
-# smallvec is included here for convenience, it is used by gpui when creating
-# components that can have children. uncomment this line or
-# use `cargo add smallvec` to add it to your project
-#smallvec = "1.13.2"
+git2 = "0.18.2"
+anyhow = "1.0.75"
+derive_more = "0.99.17"
+pathdiff = "0.2.1"
+path-clean = "1.0.1"
+
+# For testing
+tempfile = "3.8.1"
