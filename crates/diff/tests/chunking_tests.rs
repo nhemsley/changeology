@@ -1,4 +1,4 @@
-use diff::{BufferDiff, DiffHunk, DiffHunkStatus};
+use diff::{BufferDiff, DiffHunkStatus};
 
 #[test]
 fn test_large_file_chunking() {

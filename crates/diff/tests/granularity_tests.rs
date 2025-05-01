@@ -1,6 +1,5 @@
-use diff::{BufferDiff, DiffConfig, DiffGranularity, TextDiff};
+use diff::{DiffConfig, DiffGranularity, TextDiff};
 use similar::Algorithm;
-use std::vec::Vec;
 
 #[test]
 fn test_line_level_diff() {

@@ -1,15 +1,15 @@
 use anyhow::Result;
-use diff::{DiffConfig, LineEndingMode, TextDiff};
+use diff::{LineEndingMode, TextDiff};
 use std::env;
 use std::fs::File;
-use std::io::{self, Read, Write};
+use std::io::Write;
 use std::path::Path;
 
 fn main() -> Result<()> {
     // Example text with mixed line endings
     let unix_text = "Line 1\nLine 2\nLine 3\n";
     let windows_text = "Line 1\r\nLine 2\r\nLine 3\r\n";
-    let mac_text = "Line 1\rLine 2\rLine 3\r";
+    let _mac_text = "Line 1\rLine 2\rLine 3\r";
     let mixed_text = "Line 1\nLine 2\r\nLine 3\r";
 
     println!("=== Demonstrating line ending handling ===\n");

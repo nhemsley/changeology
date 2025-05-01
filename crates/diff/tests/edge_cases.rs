@@ -1,4 +1,4 @@
-use diff::{BufferDiff, DiffHunkStatus, TextDiff};
+use diff::{BufferDiff, TextDiff};
 
 #[test]
 fn test_newlines_at_end() {

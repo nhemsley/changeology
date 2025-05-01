@@ -178,8 +178,7 @@ fn test_line_types() {
         // Check if the line types match our expectations
         let has_old_only = hunk.line_types.contains(&DiffLineType::OldOnly);
         let has_new_only = hunk.line_types.contains(&DiffLineType::NewOnly);
-        let has_both = hunk.line_types.contains(&DiffLineType::Both);
-
+        
         assert!(has_old_only);
         assert!(has_new_only);
         // Note: it's okay if there's no "Both" type depending on implementation
@@ -207,7 +206,7 @@ fn test_text_diff() {
 
     assert!(snapshot.hunk_count() >= 1);
     assert!(snapshot.added_lines() >= 1);
-    assert!(snapshot.deleted_lines() >= 0);
+    assert!(snapshot.deleted_lines() >= 1);
 }
 
 #[test]
