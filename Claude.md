@@ -1,207 +1,124 @@
-# Git Diff Visualization Extraction Project
+# Changeology Project Plan
 
-This document outlines a plan for extracting and reusing the git diff visualization functionality from Zed, focusing on two primary use cases:
-1. Viewing unstaged changes
-2. Viewing diffs between arbitrary text versions
+This document outlines the approach to extract Git diff visualization functionality from Zed into a standalone Rust library.
 
 ## Project Structure
 
-```
-changeology/
-├── Cargo.toml               # Workspace manifest
-├── crates/
-│   ├── changeology/         # Integration crate / public API
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       └── lib.rs       # Main library entry point
-│   │
-│   ├── diff/                # Core diff calculation
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── buffer_diff.rs   # Core diff algorithm (extracted from Zed)
-│   │       ├── diff_hunk.rs     # Diff hunk representation and status
-│   │       └── text_diff.rs     # Text-based diff calculation
-│   │
-│   ├── git/                 # Git integration
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── repository.rs    # Git repository operations
-│   │       └── status.rs        # Git status representation
-│   │
-│   ├── ui/                  # UI components
-│   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── diff_view.rs     # Component for displaying diffs
-│   │       ├── status_view.rs   # Component for displaying git status
-│   │       └── styling.rs       # Styling for diff display
-│   │
-│   └── util/                # Utility functions
-│       ├── Cargo.toml
-│       └── src/
-│           ├── lib.rs
-│           └── text.rs          # Text handling utilities
-│
-├── examples/                # Example applications
-│   ├── git_status.rs        # Show git status example
-│   └── file_diff.rs         # Compare two files example
-│
-├── tests/                   # Integration tests
-│
-└── vendor/                  # Vendored code from Zed and gitui
-    ├── zed/                 # Relevant Zed code for reference
-    └── gitui/               # Relevant gitui code for reference
-```
+The project is organized as a Rust workspace with multiple crates:
 
-## Core Components to Extract
+- **crates/changeology/** - Main application with GPUI integration
+- **crates/diff/** - Core diff calculation and representation
+- **crates/git/** - Git repository interaction
 
-### 1. From Zed's `buffer_diff` Crate
-
-The heart of the diff calculation logic from `crates/buffer_diff/src/buffer_diff.rs`:
-
-- `BufferDiff`: Main class for diff calculation
-- `BufferDiffSnapshot`: Immutable snapshot of diffs
-- `DiffHunk`: Represents a chunk of changes
-- `DiffHunkStatus`: Enum for diff status (added/deleted/modified)
-- `DiffHunkSecondaryStatus`: Enum for staged/unstaged status
-- `compute_hunks()`: Core algorithm to calculate diff hunks
-
-### 2. From Zed's `git_ui` Crate
-
-UI rendering and interaction from `crates/git_ui/src/project_diff.rs`:
-
-- `ProjectDiff`: Main component for diff visualization
-- Logic for rendering diff hunks with appropriate styling
-- Staging/unstaging interaction handlers
-
-### 3. From Zed's `git` Crate
-
-Git integration from `crates/git/src/repository.rs` and `crates/git/src/status.rs`:
-
-- File status representation and detection
-- Repository operations for fetching content
-
-## Implementation Plan
+## Implementation Phases
 
 ### Phase 1: Core Diff Library
 
-1. Extract and adapt the core diff calculation from `buffer_diff.rs`
-2. Remove dependencies on Zed's entity system and UI framework
-3. Create clean interfaces for text representation and diff calculation
-4. Implement tests to ensure correctness
+Implement the core functionality for calculating and representing diffs between text documents.
+
+- [x] **Step 1:** Create the diff crate structure
+  - [x] Core data structures for representing diffs
+  - [x] APIs for computing and displaying diffs
+  - [x] Example showcasing the functionality
+  - [x] Comprehensive tests
+
+- [x] **Step 2:** Improve diff hunk representation
+  - [x] Fix line type tracking for accurate add/delete counting
+  - [x] Handle empty files, added files, and deleted files correctly
+  - [x] Implement context lines for better diff readability
+  - [x] Enhance handling of multi-hunk diffs
+
+- [ ] **Step 3:** Enhance the diff algorithm
+  - [ ] Optimize performance for large files
+  - [ ] Support for binary files
+  - [ ] Word-level diffing options
+  - [ ] Configurable diffing parameters
+
+- [ ] **Step 4:** Improve text representation
+  - [ ] Better handling of different line ending types
+  - [ ] Efficient storage and manipulation of text
+  - [ ] Unicode support improvements
+
+- [ ] **Step 5:** Add helper methods
+  - [ ] Methods for navigating through hunks
+  - [ ] Statistical analysis of diffs
+  - [ ] Search functionality within diffs
 
 ### Phase 2: Git Integration
 
-1. Create a simplified git integration layer
-2. Extract status representation from Zed's git crate
-3. Implement functions to get unstaged/staged changes
-4. Add git content retrieval for different versions (HEAD, index, working)
+Implement Git integration to access repository information and file versions.
 
-### Phase 3: UI Components
+- [x] **Step 1:** Create the git crate structure
+  - [x] Repository wrapper around git2
+  - [x] Status representation and filtering
+  - [x] Methods for accessing different versions of files
 
-1. Design a framework-agnostic representation of diff styling
-2. Extract the diff visualization logic from `project_diff.rs`
-3. Create adaptable UI components for different UI frameworks
-4. Implement interaction handlers for staging/unstaging
+- [x] **Step 2:** Implement repository operations
+  - [x] Get working directory and index status
+  - [x] Access file content from different versions (HEAD, index, working)
+  - [x] Generate diffs between versions
 
-### Phase 4: Examples and Documentation
+- [ ] **Step 3:** Handle advanced Git scenarios
+  - [ ] Support for merge conflicts
+  - [ ] Handling of submodules
+  - [ ] Stash operations
+  - [ ] Branch and remote operations
 
-1. Create example applications for both use cases
-2. Document the API and usage patterns
-3. Add comprehensive tests
+### Phase 3: UI Integration
 
-## Dependency Considerations
+Implement the UI components using GPUI.
 
-### Required External Dependencies
+- [ ] **Step 1:** Create basic application shell
+  - [ ] Window and layout setup
+  - [ ] Menu and command structure
+  - [ ] Settings and preferences
 
-- **git2**: For Git operations via libgit2
-- **derive_more**: For deriving traits
-- A text/rope library (e.g., **ropey** or **xi-rope**)
+- [ ] **Step 2:** Build diff visualization components
+  - [ ] Side-by-side diff view
+  - [ ] Inline diff view
+  - [ ] Syntax highlighting integration
+  - [ ] Interactive components (expand/collapse hunks, etc.)
 
-### Optional Dependencies
+- [ ] **Step 3:** Create file browser and navigation
+  - [ ] File tree component
+  - [ ] Status indicators
+  - [ ] Search and filter
 
-- UI framework adapters (for your specific UI framework)
-- Syntax highlighting (if needed)
+- [ ] **Step 4:** Implement Git operations UI
+  - [ ] Stage/unstage functionality
+  - [ ] Commit interface
+  - [ ] Branch visualization
+  - [ ] History view
 
-## Adapting Zed's Architecture
+### Phase 4: Performance Optimization
 
-### Key Adaptations Needed
+Optimize the performance of both the core library and the UI.
 
-1. **Replace Entity System**:
-   - Replace Zed's entity-based state management with simpler references or Arc
-   - Remove dependencies on Context<T> and App
+- [ ] **Step 1:** Profile and identify bottlenecks
+  - [ ] Core diff algorithm
+  - [ ] File loading and parsing
+  - [ ] UI rendering
 
-2. **Text Representation**:
-   - Replace Zed's Rope and Buffer with a simpler text representation
-   - Use a standard Rope implementation or simple String for smaller diffs
+- [ ] **Step 2:** Implement optimizations
+  - [ ] Parallelization of diff calculations
+  - [ ] Caching strategies
+  - [ ] Virtualized rendering for large diffs
+  - [ ] Incremental diffing
 
-3. **UI Abstraction**:
-   - Create trait-based abstractions for rendering
-   - Allow adapters for different UI frameworks
+- [ ] **Step 3:** Create benchmarks
+  - [ ] Benchmark suite for core operations
+  - [ ] UI rendering benchmarks
+  - [ ] Regression testing
 
-4. **State Management**:
-   - Simplify the reactive model used in Zed
-   - Use a simpler observer pattern or callback-based approach
+## Current Status
 
-## Challenges and Considerations
+- **Phase 1 (Core Diff Library)**: 2/5 steps completed
+- **Phase 2 (Git Integration)**: 2/3 steps completed 
+- **Phase 3 (UI Integration)**: Not started
+- **Phase 4 (Performance Optimization)**: Not started
 
-1. **Zed's Tight Integration**: The diff functionality is tightly integrated with Zed's architecture, requiring careful extraction to maintain functionality.
+## Next Steps
 
-2. **Git Integration**: The git operations need to be simplified while maintaining functionality.
-
-3. **UI Framework Independence**: Create abstractions that work with various UI frameworks.
-
-4. **Performance**: Maintain the efficiency of Zed's diff calculation while simplifying the implementation.
-
-## Reference Code
-
-The most important files to study from Zed:
-
-1. `crates/buffer_diff/src/buffer_diff.rs` - Core diff calculation
-2. `crates/git_ui/src/project_diff.rs` - Diff visualization
-3. `crates/git/src/repository.rs` - Git operations
-4. `crates/git/src/status.rs` - Git status representation
-
-Additionally, relevant code from gitui can provide inspiration for alternative implementations.
-
-## Usage Examples
-
-### Viewing Unstaged Changes
-
-```rust
-// Example API usage (not final)
-let repo = Repository::open("path/to/repo")?;
-let status = repo.status()?;
-
-// Get unstaged changes for a file
-let file_path = "src/main.rs";
-let file_status = status.get_file_status(file_path)?;
-
-if file_status.has_changes() {
-    // Get content from different versions
-    let head_content = repo.get_head_content(file_path)?;
-    let working_content = repo.get_working_content(file_path)?;
-    
-    // Calculate diff
-    let diff = BufferDiff::new(&working_content, &head_content)?;
-    
-    // Render diff (framework-specific)
-    diff_view.render(&diff);
-}
-```
-
-### Viewing Diffs Between Arbitrary Texts
-
-```rust
-// Example API usage (not final)
-let text_a = "original text\nwith multiple\nlines";
-let text_b = "original text\nwith different\nlines\nand more content";
-
-// Calculate diff
-let diff = BufferDiff::new(text_a, text_b)?;
-
-// Render diff (framework-specific)
-diff_view.render(&diff);
-```
+1. Continue work on Phase 1, Step 3: Enhance the diff algorithm
+2. Begin UI integration (Phase 3)
+3. Complete remaining Git integration features (Phase 2, Step 3)
