@@ -4,6 +4,14 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[[example]]
+name = "enhanced_diff"
+path = "examples/enhanced_diff.rs"
+
+[[example]]
+name = "chunked_diff"
+path = "examples/chunked_diff.rs"
+
 [dependencies]
 # Error handling
 anyhow.workspace = true
@@ -13,6 +21,8 @@ ropey.workspace = true
 derive_more.workspace = true
 # Diff algorithm 
 similar.workspace = true
+# For parallel processing
+rayon = "1.8.1"
 # Optional: for serialization if needed
 serde = { workspace = true, optional = true }
 

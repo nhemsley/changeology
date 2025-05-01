@@ -1,0 +1,18 @@
+This is a sample text file
+with multiple lines
+to demonstrate the enhanced
+diff capabilities
+of the Changeology project.
+
+It supports different levels of granularity:
+- Line level (default)
+- Word level
+- Character level
+
+And different diff algorithms:
+- Myers (default)
+- Patience
+
+With various options:
+- Ignore whitespace
+- Configurable context lines

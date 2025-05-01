@@ -9,4 +9,6 @@ name = "changeology"
 path = "src/changeology.rs"
 
 [dependencies]
-gpui.workspace = true
+rand = "0.8.5"
+diff = { path = "../diff" }
+git = { path = "../git" }

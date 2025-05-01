@@ -1,0 +1,19 @@
+This is a modified text file
+with multiple lines
+to demonstrate  the  enhanced
+diff capabilities
+of the Changeology diff library.
+
+It supports different granularity levels:
+- Line level (default)
+- Word level (for more details)
+- Character level (maximum detail)
+
+And various diff algorithms:
+- Myers algorithm (default, fast)
+- Patience algorithm (better for moved blocks)
+
+With configuration options:
+- Ignore whitespace changes
+- Adjustable context lines
+- Custom timeout settings
