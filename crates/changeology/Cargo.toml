@@ -1,0 +1,12 @@
+[package]
+name = "changeology"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "changeology"
+path = "src/changeology.rs"
+
+[dependencies]
+gpui.workspace = true
