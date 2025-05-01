@@ -28,11 +28,12 @@ Implement the core functionality for calculating and representing diffs between 
   - [x] Implement context lines for better diff readability
   - [x] Enhance handling of multi-hunk diffs
 
-- [ ] **Step 3:** Enhance the diff algorithm
-  - [ ] Optimize performance for large files
+- [x] **Step 3:** Enhance the diff algorithm
+  - [x] Implement chunking and parallelization for large files using rayon
+  - [x] Add word-level and character-level diffing options
+  - [x] Create configurable diffing API (algorithm, timeout, whitespace handling)
+  - [x] Add comprehensive examples demonstrating features
   - [ ] Support for binary files
-  - [ ] Word-level diffing options
-  - [ ] Configurable diffing parameters
 
 - [ ] **Step 4:** Improve text representation
   - [ ] Better handling of different line ending types
@@ -112,13 +113,26 @@ Optimize the performance of both the core library and the UI.
 
 ## Current Status
 
-- **Phase 1 (Core Diff Library)**: 2/5 steps completed
+- **Phase 1 (Core Diff Library)**: 3/5 steps completed
 - **Phase 2 (Git Integration)**: 2/3 steps completed 
-- **Phase 3 (UI Integration)**: Not started
-- **Phase 4 (Performance Optimization)**: Not started
+- **Phase 3 (UI Integration)**: Not started (gpui dependency removed)
+- **Phase 4 (Performance Optimization)**: Partially implemented (parallelization in diff)
 
 ## Next Steps
 
-1. Continue work on Phase 1, Step 3: Enhance the diff algorithm
-2. Begin UI integration (Phase 3)
-3. Complete remaining Git integration features (Phase 2, Step 3)
+1. Work on Phase 1, Step 4: Improve text representation
+2. Continue work on Phase 2, Step 3: Handle advanced Git scenarios
+3. Decide on UI approach (Phase 3) - gpui removed as dependency
+
+## Recent Accomplishments
+
+1. Enhanced diff algorithm implementation:
+   - Added chunking and parallelization for large files using rayon
+   - Implemented word-level and character-level diffing options
+   - Created configurable API with algorithm selection, timeout, whitespace handling
+   - Added comprehensive examples demonstrating different features
+   
+2. Added utility for generating large test files:
+   - Created generate_large_files.rs tool for test file generation with controlled modifications
+   
+3. Removed gpui dependency to simplify architecture
