@@ -2,7 +2,7 @@ use derive_more::Display;
 use std::ops::Range;
 
 #[cfg(feature = "serde")]
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Represents the status of a diff hunk
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Display)]
@@ -11,15 +11,15 @@ pub enum DiffHunkStatus {
     /// The hunk represents added content (only exists in new version)
     #[display(fmt = "Added")]
     Added,
-    
+
     /// The hunk represents deleted content (only exists in old version)
     #[display(fmt = "Deleted")]
     Deleted,
-    
+
     /// The hunk represents modified content (exists in both versions but different)
     #[display(fmt = "Modified")]
     Modified,
-    
+
     /// The hunk represents unchanged content (exists in both versions and identical)
     #[display(fmt = "Unchanged")]
     Unchanged,
@@ -32,11 +32,11 @@ pub enum DiffHunkSecondaryStatus {
     /// The hunk is staged (in the index)
     #[display(fmt = "Staged")]
     Staged,
-    
+
     /// The hunk is unstaged (in the working directory)
     #[display(fmt = "Unstaged")]
     Unstaged,
-    
+
     /// The hunk has no secondary status
     #[display(fmt = "None")]
     None,
@@ -48,7 +48,7 @@ pub enum DiffHunkSecondaryStatus {
 pub struct DiffHunkRange {
     /// The starting line (0-based)
     pub start: usize,
-    
+
     /// The number of lines
     pub count: usize,
 }
@@ -58,7 +58,7 @@ impl DiffHunkRange {
     pub fn new(start: usize, count: usize) -> Self {
         Self { start, count }
     }
-    
+
     /// Create a range from a start and end (exclusive)
     pub fn from_range(range: Range<usize>) -> Self {
         Self {
@@ -66,22 +66,22 @@ impl DiffHunkRange {
             count: range.end - range.start,
         }
     }
-    
+
     /// Convert to a standard Range
     pub fn to_range(&self) -> Range<usize> {
         self.start..(self.start + self.count)
     }
-    
+
     /// Get the end of the range (exclusive)
     pub fn end(&self) -> usize {
         self.start + self.count
     }
-    
+
     /// Check if this range is empty
     pub fn is_empty(&self) -> bool {
         self.count == 0
     }
-    
+
     /// Check if this range contains the given line
     pub fn contains(&self, line: usize) -> bool {
         line >= self.start && line < self.end()
@@ -94,10 +94,10 @@ impl DiffHunkRange {
 pub enum DiffLineType {
     /// Line only exists in old version (deleted)
     OldOnly,
-    
+
     /// Line only exists in new version (added)
     NewOnly,
-    
+
     /// Line exists in both versions (unchanged or part of modified hunk)
     Both,
 }
@@ -108,16 +108,16 @@ pub enum DiffLineType {
 pub struct DiffHunk {
     /// The primary status of the hunk
     pub status: DiffHunkStatus,
-    
+
     /// The secondary status of the hunk (for git integration)
     pub secondary_status: DiffHunkSecondaryStatus,
-    
+
     /// The range of lines in the old version
     pub old_range: DiffHunkRange,
-    
+
     /// The range of lines in the new version
     pub new_range: DiffHunkRange,
-    
+
     /// Line-by-line mapping of line types within this hunk
     pub line_types: Vec<DiffLineType>,
 }
@@ -152,7 +152,7 @@ impl DiffHunk {
                 vec![DiffLineType::Both; old_count]
             }
         };
-        
+
         Self {
             status,
             secondary_status: DiffHunkSecondaryStatus::None,
@@ -161,39 +161,48 @@ impl DiffHunk {
             line_types,
         }
     }
-    
+
     /// Check if this hunk has any changes
     pub fn has_changes(&self) -> bool {
         self.status != DiffHunkStatus::Unchanged
     }
-    
+
     /// Get the number of added lines in this hunk
     pub fn added_lines(&self) -> usize {
-        self.line_types.iter().filter(|&&t| t == DiffLineType::NewOnly).count()
+        self.line_types
+            .iter()
+            .filter(|&&t| t == DiffLineType::NewOnly)
+            .count()
     }
-    
+
     /// Get the number of deleted lines in this hunk
     pub fn deleted_lines(&self) -> usize {
-        self.line_types.iter().filter(|&&t| t == DiffLineType::OldOnly).count()
+        self.line_types
+            .iter()
+            .filter(|&&t| t == DiffLineType::OldOnly)
+            .count()
     }
-    
+
     /// Get the number of unchanged lines in this hunk
     pub fn unchanged_lines(&self) -> usize {
-        self.line_types.iter().filter(|&&t| t == DiffLineType::Both).count()
+        self.line_types
+            .iter()
+            .filter(|&&t| t == DiffLineType::Both)
+            .count()
     }
-    
+
     /// Set the line type at the given index
     pub fn set_line_type(&mut self, index: usize, line_type: DiffLineType) {
         if index < self.line_types.len() {
             self.line_types[index] = line_type;
         }
     }
-    
+
     /// Get the line type at the given index
     pub fn line_type(&self, index: usize) -> Option<DiffLineType> {
         self.line_types.get(index).copied()
     }
-    
+
     /// Set the secondary status of the hunk
     pub fn set_secondary_status(&mut self, status: DiffHunkSecondaryStatus) {
         self.secondary_status = status;

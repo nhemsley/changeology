@@ -2,7 +2,7 @@ use anyhow::{anyhow, Context, Result};
 use git2::{Diff, DiffOptions, Repository as Git2Repository};
 use std::path::{Path, PathBuf};
 
-use crate::status::{StatusList, StatusEntry, StatusKind};
+use crate::status::{StatusEntry, StatusKind, StatusList};
 
 /// A wrapper around git2::Repository with additional functionality
 pub struct Repository {
@@ -45,19 +45,19 @@ impl Repository {
             .renames_index_to_workdir(true);
 
         let status = self.inner.statuses(Some(&mut opts))?;
-        
+
         let mut entries = Vec::new();
-        
+
         for entry in status.iter() {
             let path = entry.path().unwrap_or("").to_string();
             let status = entry.status();
-            
+
             entries.push(StatusEntry {
                 path,
                 kind: StatusKind::from_git2_status(status),
             });
         }
-        
+
         Ok(StatusList { entries })
     }
 
@@ -66,18 +66,18 @@ impl Repository {
         let obj = match self.inner.revparse_single("HEAD")? {
             obj => obj,
         };
-        
+
         let commit = obj.peel_to_commit()?;
         let tree = commit.tree()?;
-        
+
         let entry = match tree.get_path(Path::new(path)) {
             Ok(entry) => entry,
             Err(_) => return Ok(None),
         };
-        
+
         let blob = entry.to_object(&self.inner)?.peel_to_blob()?;
         let content = String::from_utf8_lossy(blob.content()).to_string();
-        
+
         Ok(Some(content))
     }
 
@@ -87,25 +87,25 @@ impl Repository {
         if !full_path.exists() {
             return Ok(None);
         }
-        
+
         let content = std::fs::read_to_string(&full_path)
             .with_context(|| format!("Failed to read file {}", full_path.display()))?;
-        
+
         Ok(Some(content))
     }
 
     /// Get the content of a file from the index (staging area)
     pub fn get_index_content(&self, path: &str) -> Result<Option<String>> {
         let index = self.inner.index()?;
-        
+
         let id = match index.get_path(Path::new(path), 0) {
             Some(entry) => entry.id,
             None => return Ok(None),
         };
-        
+
         let blob = self.inner.find_blob(id)?;
         let content = String::from_utf8_lossy(blob.content()).to_string();
-        
+
         Ok(Some(content))
     }
 
@@ -113,19 +113,21 @@ impl Repository {
     pub fn diff_file(&self, path: &str, old_version: &str, new_version: &str) -> Result<Diff> {
         let old_oid = self.inner.revparse_single(old_version)?.id();
         let new_oid = self.inner.revparse_single(new_version)?.id();
-        
-        let old_tree = self.inner.find_tree(self.inner.find_commit(old_oid)?.tree_id())?;
-        let new_tree = self.inner.find_tree(self.inner.find_commit(new_oid)?.tree_id())?;
-        
+
+        let old_tree = self
+            .inner
+            .find_tree(self.inner.find_commit(old_oid)?.tree_id())?;
+        let new_tree = self
+            .inner
+            .find_tree(self.inner.find_commit(new_oid)?.tree_id())?;
+
         let mut diff_opts = DiffOptions::new();
         diff_opts.pathspec(path);
-        
-        let diff = self.inner.diff_tree_to_tree(
-            Some(&old_tree),
-            Some(&new_tree),
-            Some(&mut diff_opts),
-        )?;
-        
+
+        let diff =
+            self.inner
+                .diff_tree_to_tree(Some(&old_tree), Some(&new_tree), Some(&mut diff_opts))?;
+
         Ok(diff)
     }
 
@@ -133,9 +135,11 @@ impl Repository {
     pub fn diff_index_to_workdir(&self, path: &str) -> Result<Diff> {
         let mut diff_opts = DiffOptions::new();
         diff_opts.pathspec(path);
-        
-        let diff = self.inner.diff_index_to_workdir(None, Some(&mut diff_opts))?;
-        
+
+        let diff = self
+            .inner
+            .diff_index_to_workdir(None, Some(&mut diff_opts))?;
+
         Ok(diff)
     }
 
@@ -143,18 +147,16 @@ impl Repository {
     pub fn diff_head_to_index(&self, path: &str) -> Result<Diff> {
         let mut diff_opts = DiffOptions::new();
         diff_opts.pathspec(path);
-        
+
         // Get HEAD commit and its tree
         let head_obj = self.inner.revparse_single("HEAD")?;
         let head_commit = head_obj.peel_to_commit()?;
         let head_tree = head_commit.tree()?;
-        
-        let diff = self.inner.diff_tree_to_index(
-            Some(&head_tree),
-            None,
-            Some(&mut diff_opts),
-        )?;
-        
+
+        let diff = self
+            .inner
+            .diff_tree_to_index(Some(&head_tree), None, Some(&mut diff_opts))?;
+
         Ok(diff)
     }
 }

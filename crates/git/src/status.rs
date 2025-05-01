@@ -89,7 +89,7 @@ impl StatusKind {
         if status.is_conflicted() {
             return StatusKind::Conflicted;
         }
-        
+
         StatusKind::Unknown
     }
 }
@@ -118,32 +118,32 @@ impl StatusList {
     {
         self.entries.iter().filter(|e| predicate(e)).collect()
     }
-    
+
     /// Get all status entries for a specific file path
     pub fn get_file_status(&self, path: &str) -> Vec<&StatusEntry> {
         self.filter(|e| e.path == path)
     }
-    
+
     /// Get all added files
     pub fn added(&self) -> Vec<&StatusEntry> {
         self.filter(|e| e.kind == StatusKind::Added)
     }
-    
+
     /// Get all modified files
     pub fn modified(&self) -> Vec<&StatusEntry> {
         self.filter(|e| e.kind == StatusKind::Modified)
     }
-    
+
     /// Get all deleted files
     pub fn deleted(&self) -> Vec<&StatusEntry> {
         self.filter(|e| e.kind == StatusKind::Deleted)
     }
-    
+
     /// Get all renamed files
     pub fn renamed(&self) -> Vec<&StatusEntry> {
         self.filter(|e| e.kind == StatusKind::Renamed)
     }
-    
+
     /// Get all untracked files
     pub fn untracked(&self) -> Vec<&StatusEntry> {
         self.filter(|e| e.kind == StatusKind::Untracked)

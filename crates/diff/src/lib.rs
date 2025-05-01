@@ -6,5 +6,7 @@ mod diff_hunk;
 mod text_diff;
 
 pub use buffer_diff::{BufferDiff, BufferDiffSnapshot};
-pub use diff_hunk::{DiffHunk, DiffHunkStatus, DiffHunkRange, DiffLineType, DiffHunkSecondaryStatus};
+pub use diff_hunk::{
+    DiffHunk, DiffHunkRange, DiffHunkSecondaryStatus, DiffHunkStatus, DiffLineType,
+};
 pub use text_diff::TextDiff;

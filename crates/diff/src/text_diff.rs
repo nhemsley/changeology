@@ -11,7 +11,7 @@ impl TextDiff {
     pub fn diff(old_text: &str, new_text: &str) -> Result<BufferDiff> {
         BufferDiff::new(old_text, new_text)
     }
-    
+
     /// Generate a unified diff string (like git diff)
     pub fn unified_diff(old_text: &str, new_text: &str, _context_lines: usize) -> String {
         // The similar crate doesn't have context_radius in newer versions
@@ -20,9 +20,9 @@ impl TextDiff {
             .algorithm(Algorithm::Myers)
             .timeout(std::time::Duration::from_secs(5))
             .diff_lines(old_text, new_text);
-            
+
         let mut result = String::new();
-        
+
         for change in diff.iter_all_changes() {
             let sign = match change.tag() {
                 ChangeTag::Delete => "-",
@@ -31,7 +31,7 @@ impl TextDiff {
             };
             result.push_str(&format!("{}{}", sign, change));
         }
-        
+
         result
     }
 }
