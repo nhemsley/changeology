@@ -9,4 +9,4 @@ pub use buffer_diff::{BufferDiff, BufferDiffSnapshot};
 pub use diff_hunk::{
     DiffHunk, DiffHunkRange, DiffHunkSecondaryStatus, DiffHunkStatus, DiffLineType,
 };
-pub use text_diff::{DiffConfig, DiffGranularity, TextDiff};
+pub use text_diff::{DiffConfig, DiffGranularity, LineEndingMode, TextDiff};

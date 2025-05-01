@@ -4,6 +4,21 @@ use std::time::Duration;
 
 use crate::buffer_diff::BufferDiff;
 
+/// Line ending types for text normalization
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineEndingMode {
+    /// Auto-detect line endings from text (default)
+    Auto,
+    /// Unix-style line endings (LF: \n)
+    Unix,
+    /// Windows-style line endings (CRLF: \r\n)
+    Windows,
+    /// Classic Mac OS line endings (CR: \r)
+    MacOS,
+    /// Preserve original line endings without normalization
+    Preserve,
+}
+
 /// Granularity for diff operations
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiffGranularity {
@@ -28,6 +43,8 @@ pub struct DiffConfig {
     pub context_lines: usize,
     /// Whether to ignore whitespace changes
     pub ignore_whitespace: bool,
+    /// Line ending normalization mode
+    pub line_ending_mode: LineEndingMode,
 }
 
 impl Default for DiffConfig {
@@ -38,6 +55,7 @@ impl Default for DiffConfig {
             timeout_seconds: 5, // 5 second timeout
             context_lines: 3, // Default context lines
             ignore_whitespace: false, // Don't ignore whitespace by default
+            line_ending_mode: LineEndingMode::Auto, // Auto-detect line endings by default
         }
     }
 }
@@ -73,13 +91,28 @@ impl DiffConfig {
         self
     }
     
+    /// Set the line ending normalization mode
+    pub fn line_ending_mode(mut self, mode: LineEndingMode) -> Self {
+        self.line_ending_mode = mode;
+        self
+    }
+    
     /// Create a diff between two texts using this configuration
     pub fn diff(&self, old_text: &str, new_text: &str) -> Result<BufferDiff> {
-        // Apply whitespace handling if needed
-        let (old_processed, new_processed) = if self.ignore_whitespace {
+        // Step 1: Apply whitespace handling if needed
+        let (old_after_whitespace, new_after_whitespace) = if self.ignore_whitespace {
             (self.normalize_whitespace(old_text), self.normalize_whitespace(new_text))
         } else {
             (old_text.to_string(), new_text.to_string())
+        };
+        
+        // Step 2: Apply line ending normalization
+        let (old_processed, new_processed) = match self.line_ending_mode {
+            LineEndingMode::Preserve => (old_after_whitespace, new_after_whitespace),
+            _ => (
+                self.normalize_line_endings(&old_after_whitespace),
+                self.normalize_line_endings(&new_after_whitespace)
+            ),
         };
         
         // Delegate to the appropriate diff method based on granularity
@@ -92,11 +125,20 @@ impl DiffConfig {
     
     /// Generate a unified diff string using this configuration
     pub fn unified_diff(&self, old_text: &str, new_text: &str) -> String {
-        // Apply whitespace handling if needed
-        let (old_processed, new_processed) = if self.ignore_whitespace {
+        // Step 1: Apply whitespace handling if needed
+        let (old_after_whitespace, new_after_whitespace) = if self.ignore_whitespace {
             (self.normalize_whitespace(old_text), self.normalize_whitespace(new_text))
         } else {
             (old_text.to_string(), new_text.to_string())
+        };
+        
+        // Step 2: Apply line ending normalization
+        let (old_processed, new_processed) = match self.line_ending_mode {
+            LineEndingMode::Preserve => (old_after_whitespace, new_after_whitespace),
+            _ => (
+                self.normalize_line_endings(&old_after_whitespace),
+                self.normalize_line_endings(&new_after_whitespace)
+            ),
         };
         
         // Apply the granularity based on configuration
@@ -153,6 +195,55 @@ impl DiffConfig {
         
         // Trim leading and trailing whitespace
         result.trim().to_string()
+    }
+    
+    /// Normalize line endings in a string based on the configured mode
+    fn normalize_line_endings(&self, text: &str) -> String {
+        // If text is empty, just return empty string
+        if text.is_empty() {
+            return String::new();
+        }
+        
+        match self.line_ending_mode {
+            LineEndingMode::Preserve => text.to_string(),
+            
+            LineEndingMode::Unix => {
+                // Convert all line endings to Unix (\n)
+                text.replace("\r\n", "\n").replace("\r", "\n")
+            },
+            
+            LineEndingMode::Windows => {
+                // Convert all line endings to Windows (\r\n)
+                // First normalize to \n, then convert to \r\n
+                let normalized = text.replace("\r\n", "\n").replace("\r", "\n");
+                normalized.replace("\n", "\r\n")
+            },
+            
+            LineEndingMode::MacOS => {
+                // Convert all line endings to Classic Mac (\r)
+                text.replace("\r\n", "\r").replace("\n", "\r")
+            },
+            
+            LineEndingMode::Auto => {
+                // Auto-detect the dominant line ending in the text
+                let crlf_count = text.matches("\r\n").count();
+                let cr_count = text.matches("\r").count() - crlf_count; // Avoid double counting \r in \r\n
+                let lf_count = text.matches("\n").count() - crlf_count; // Avoid double counting \n in \r\n
+                
+                // Determine the most common line ending
+                if crlf_count > cr_count && crlf_count > lf_count {
+                    // Windows style is dominant
+                    let normalized = text.replace("\r\n", "\n").replace("\r", "\n");
+                    normalized.replace("\n", "\r\n")
+                } else if cr_count > crlf_count && cr_count > lf_count {
+                    // Classic Mac style is dominant
+                    text.replace("\r\n", "\r").replace("\n", "\r")
+                } else {
+                    // Unix style is dominant or no clear winner
+                    text.replace("\r\n", "\n").replace("\r", "\n")
+                }
+            }
+        }
     }
 }
 
