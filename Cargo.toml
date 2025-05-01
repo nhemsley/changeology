@@ -13,7 +13,6 @@ git = { path = "crates/git" }
 diff = { path = "crates/diff" }
 
 # External dependencies
-gpui = { git = "https://github.com/zed-industries/zed" }
 git2 = "0.18.2"
 anyhow = "1.0.75"
 derive_more = "0.99.17"
