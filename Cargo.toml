@@ -2,7 +2,8 @@
 members = [
     "crates/changeology",
     "crates/git",
-    "crates/diff"
+    "crates/diff",
+    "crates/diff-ui"
 ]
 default-members = ["crates/changeology", "crates/git", "crates/diff"]
 resolver = "2"

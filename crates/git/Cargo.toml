@@ -18,3 +18,4 @@ path-clean.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+buffer-diff.workspace = true

@@ -1,0 +1,22 @@
+[package]
+name = "diff-ui"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bin]]
+name = "diff-ui"
+path = "src/main.rs"
+
+[dependencies]
+# GPU-accelerated UI framework from Zed (published on crates.io)
+gpui = "0.2"
+
+# Our diff calculation crate
+buffer-diff = { path = "../diff" }
+
+# Our git crate for repository access
+git = { path = "../git" }
+
+# Error handling
+anyhow = "1.0"

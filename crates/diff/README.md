@@ -13,6 +13,7 @@ A crate for calculating and representing differences between text documents.
 
 ## Usage
 
+SOme change
 Add the crate to your `Cargo.toml`:
 
 ```toml
@@ -21,6 +22,7 @@ buffer-diff = { path = "../diff" }
 anyhow = "1.0"
 ```
 
+Some chane 3
 ### Examples
 
 #### Creating and Displaying a Text Diff
@@ -34,6 +36,7 @@ fn main() -> Result<()> {
     let text1 = "This is the first line.\nHere is the second line.\nAnd the third line.";
     let text2 = "This is the first line.\nThis is a completely different second line.\nAnd the third line.\nPlus a new fourth line.";
 
+    // Another
     // Generate a unified diff
     println!("Unified diff:");
     println!("{}", TextDiff::unified_diff(text1, text2, 1));
