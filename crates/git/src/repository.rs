@@ -110,7 +110,7 @@ impl Repository {
     }
 
     /// Get the diff between two versions of a file
-    pub fn diff_file(&self, path: &str, old_version: &str, new_version: &str) -> Result<Diff> {
+    pub fn diff_file(&self, path: &str, old_version: &str, new_version: &str) -> Result<Diff<'_>> {
         let old_oid = self.inner.revparse_single(old_version)?.id();
         let new_oid = self.inner.revparse_single(new_version)?.id();
 
@@ -132,7 +132,7 @@ impl Repository {
     }
 
     /// Get the diff between the index and the working directory for a file
-    pub fn diff_index_to_workdir(&self, path: &str) -> Result<Diff> {
+    pub fn diff_index_to_workdir(&self, path: &str) -> Result<Diff<'_>> {
         let mut diff_opts = DiffOptions::new();
         diff_opts.pathspec(path);
 
@@ -144,7 +144,7 @@ impl Repository {
     }
 
     /// Get the diff between HEAD and the index for a file
-    pub fn diff_head_to_index(&self, path: &str) -> Result<Diff> {
+    pub fn diff_head_to_index(&self, path: &str) -> Result<Diff<'_>> {
         let mut diff_opts = DiffOptions::new();
         diff_opts.pathspec(path);
 
