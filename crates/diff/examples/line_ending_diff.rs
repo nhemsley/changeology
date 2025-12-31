@@ -1,5 +1,5 @@
 use anyhow::Result;
-use diff::{LineEndingMode, TextDiff};
+use buffer_diff::{LineEndingMode, TextDiff};
 use std::env;
 use std::fs::File;
 use std::io::Write;

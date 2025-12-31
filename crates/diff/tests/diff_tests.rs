@@ -1,4 +1,4 @@
-use diff::{BufferDiff, DiffHunkStatus, DiffLineType, TextDiff};
+use buffer_diff::{BufferDiff, DiffHunkStatus, DiffLineType, TextDiff};
 
 #[test]
 fn test_empty_files() {
@@ -212,7 +212,7 @@ fn test_text_diff() {
 #[test]
 fn test_range_methods() {
     // Test DiffHunkRange methods
-    use diff::DiffHunkRange;
+    use buffer_diff::DiffHunkRange;
 
     let range = DiffHunkRange::new(10, 5);
 

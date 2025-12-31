@@ -10,5 +10,5 @@ path = "src/changeology.rs"
 
 [dependencies]
 rand = "0.8.5"
-diff = { path = "../diff" }
+buffer-diff = { path = "../diff" }
 git = { path = "../git" }

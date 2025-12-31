@@ -10,7 +10,7 @@ Changeology extracts Zed's diff visualization tools into separate, reusable comp
 
 - **[git](crates/git/README.md)**: A wrapper around `git2` that provides a simpler interface for working with Git repositories, including status information and file content retrieval.
 
-- **[diff](crates/diff/README.md)**: A crate for calculating and representing differences between text documents, with support for hunks, line-level granularity, and context lines.
+- **[buffer-diff](crates/diff/README.md)**: A crate for calculating and representing differences between text documents, with support for hunks, line-level granularity, and context lines.
 
 - **changeology** (Main application): Integrates the functionality of the other crates with a GPUI-based visualization interface.
 
@@ -55,7 +55,7 @@ cargo test
 ### Project Structure
 
 - `crates/git/`: The Git wrapper crate
-- `crates/diff/`: The diff calculation and representation crate
+- `crates/diff/`: The buffer-diff calculation and representation crate
 - `crates/changeology/`: The main application with GPUI integration
 
 ## Related Projects

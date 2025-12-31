@@ -10,7 +10,7 @@ resolver = "2"
 [workspace.dependencies]
 changeology = { path = "crates/changeology" }
 git = { path = "crates/git" }
-diff = { path = "crates/diff" }
+buffer-diff = { path = "crates/diff" }
 
 # External dependencies
 git2 = "0.18.2"

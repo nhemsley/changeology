@@ -1,4 +1,4 @@
-use diff::{DiffHunk, DiffHunkSecondaryStatus, DiffHunkStatus, DiffLineType};
+use buffer_diff::{DiffHunk, DiffHunkSecondaryStatus, DiffHunkStatus, DiffLineType};
 
 #[test]
 fn test_diff_hunk_creation() {

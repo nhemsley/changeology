@@ -1,4 +1,4 @@
-# Diff Crate
+# Buffer-Diff Crate
 
 A crate for calculating and representing differences between text documents.
 
@@ -17,7 +17,7 @@ Add the crate to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-diff = { path = "../diff" }
+buffer-diff = { path = "../diff" }
 anyhow = "1.0"
 ```
 
@@ -27,7 +27,7 @@ anyhow = "1.0"
 
 ```rust
 use anyhow::Result;
-use diff::{DiffLineType, TextDiff};
+use buffer_diff::{DiffLineType, TextDiff};
 
 fn main() -> Result<()> {
     // Two sample texts to compare
@@ -77,7 +77,7 @@ fn main() -> Result<()> {
 For more control over the diff process, you can use `BufferDiff` directly:
 
 ```rust
-use diff::{BufferDiff, DiffHunkStatus};
+use buffer_diff::{BufferDiff, DiffHunkStatus};
 use anyhow::Result;
 
 fn main() -> Result<()> {

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use diff::{DiffGranularity, TextDiff};
+use buffer_diff::{DiffGranularity, TextDiff};
 use similar::Algorithm;
 
 fn main() -> Result<()> {

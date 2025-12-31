@@ -6,7 +6,7 @@ Changeology is a project to extract Git diff visualization functionality from Ze
 ## Project Structure
 The project is organized as a Rust workspace with multiple crates:
 - **crates/changeology/** - Main application (former GPUI integration removed)
-- **crates/diff/** - Core diff calculation and representation
+- **crates/diff/** - Core diff calculation and representation (crate name: buffer-diff)
 - **crates/git/** - Git repository interaction
 
 ## Current Implementation Status
@@ -48,7 +48,7 @@ The project is organized as a Rust workspace with multiple crates:
   4. "Improve text representation with line ending handling"
   5. "Update Claude.md with line ending handling progress"
 
-## Key Implemented Features in diff crate
+## Key Implemented Features in buffer-diff crate
 
 ### Enhanced Diff Algorithm
 - **Chunking & Parallelization**: Automatically chunks large files and processes them in parallel using rayon

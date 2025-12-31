@@ -1,5 +1,5 @@
 use anyhow::Result;
-use diff::{DiffLineType, TextDiff};
+use buffer_diff::{DiffLineType, TextDiff};
 
 fn main() -> Result<()> {
     // Two sample texts to compare

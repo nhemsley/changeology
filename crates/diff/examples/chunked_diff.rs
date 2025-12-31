@@ -1,4 +1,4 @@
-use diff::BufferDiff;
+use buffer_diff::BufferDiff;
 use std::env;
 use std::fs::File;
 use std::io::{self, BufWriter, Read, Write};

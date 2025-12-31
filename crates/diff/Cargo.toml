@@ -1,5 +1,5 @@
 [package]
-name = "diff"
+name = "buffer-diff"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -19,7 +19,7 @@ anyhow.workspace = true
 ropey.workspace = true
 # Helpful derive macros
 derive_more.workspace = true
-# Diff algorithm 
+# Diff algorithm
 similar.workspace = true
 # For parallel processing
 rayon = "1.8.1"

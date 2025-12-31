@@ -1,5 +1,5 @@
 use anyhow::Result;
-use diff::{DiffGranularity, TextDiff};
+use buffer_diff::{DiffGranularity, TextDiff};
 
 fn main() -> Result<()> {
     // Sample texts with word-level differences

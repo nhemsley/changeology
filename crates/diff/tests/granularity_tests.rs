@@ -1,4 +1,4 @@
-use diff::{DiffConfig, DiffGranularity, TextDiff};
+use buffer_diff::{DiffConfig, DiffGranularity, TextDiff};
 use similar::Algorithm;
 
 #[test]
@@ -25,12 +25,12 @@ fn test_line_level_diff() {
     // Verify line types (should have at least one modified line)
     let old_only_count = snapshot.hunks()
         .iter()
-        .map(|h| h.line_types.iter().filter(|&&t| t == diff::DiffLineType::OldOnly).count())
+        .map(|h| h.line_types.iter().filter(|&&t| t == buffer_diff::DiffLineType::OldOnly).count())
         .sum::<usize>();
     
     let new_only_count = snapshot.hunks()
         .iter()
-        .map(|h| h.line_types.iter().filter(|&&t| t == diff::DiffLineType::NewOnly).count())
+        .map(|h| h.line_types.iter().filter(|&&t| t == buffer_diff::DiffLineType::NewOnly).count())
         .sum::<usize>();
     
     assert_eq!(old_only_count, 1); // One line removed
@@ -117,5 +117,5 @@ fn test_whitespace_ignoring() {
     // Since we're ignoring whitespace, these should be considered the same
     // Note: This assertion might not always hold depending on how normalize_whitespace is implemented
     // If it treats all leading/trailing space as significant, this might need updating
-    assert!(!ws_snapshot.has_changes() || ws_snapshot.hunks()[0].status == diff::DiffHunkStatus::Unchanged);
+    assert!(!ws_snapshot.has_changes() || ws_snapshot.hunks()[0].status == buffer_diff::DiffHunkStatus::Unchanged);
 }

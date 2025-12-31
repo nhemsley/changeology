@@ -1,4 +1,4 @@
-use diff::{DiffConfig, DiffGranularity};
+use buffer_diff::{DiffConfig, DiffGranularity};
 use similar::Algorithm;
 use std::env;
 use std::fs::File;

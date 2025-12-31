@@ -1,5 +1,5 @@
 use anyhow::Result;
-use diff::{LineEndingMode, TextDiff};
+use buffer_diff::{LineEndingMode, TextDiff};
 use std::env;
 use std::path::Path;
 

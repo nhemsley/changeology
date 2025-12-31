@@ -1,4 +1,4 @@
-use diff::{BufferDiff, TextDiff};
+use buffer_diff::{BufferDiff, TextDiff};
 
 #[test]
 fn test_newlines_at_end() {
@@ -85,7 +85,7 @@ fn test_unicode_text() {
 #[test]
 fn test_empty_hunk_snapshot() {
     // Test the empty() constructor for BufferDiffSnapshot
-    use diff::BufferDiffSnapshot;
+    use buffer_diff::BufferDiffSnapshot;
 
     let snapshot = BufferDiffSnapshot::empty();
 
