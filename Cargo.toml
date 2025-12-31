@@ -4,7 +4,7 @@ members = [
     "crates/git",
     "crates/diff"
 ]
-default-members = ["crates/changeology"]
+default-members = ["crates/changeology", "crates/git", "crates/diff"]
 resolver = "2"
 
 [workspace.dependencies]
