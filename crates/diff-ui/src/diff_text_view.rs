@@ -5,10 +5,28 @@
 
 use buffer_diff::{DiffHunkStatus, DiffLineType, TextDiff};
 use gpui::{
-    div, prelude::*, px, Context, Hsla, IntoElement, Render, SharedString, Window,
+    div, prelude::*, px, Context, IntoElement, Render, SharedString, Window,
+    uniform_list,
 };
 
-use crate::theme::DiffTheme;
+pub use crate::theme::DiffTheme;
+
+/// Rendering mode for the diff view
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RenderMode {
+    /// Use virtualized rendering (uniform_list) - only renders visible lines
+    /// Best for large diffs (1000+ lines) and interactive scrolling
+    Virtualized,
+    /// Render all lines in a scrollable container
+    /// Best for exporting, printing, or embedding in a larger buffer
+    FullBuffer,
+}
+
+impl Default for RenderMode {
+    fn default() -> Self {
+        Self::Virtualized
+    }
+}
 
 /// Style for a single display line
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +82,8 @@ pub struct DiffTextView {
     display_lines: Vec<DiffDisplayLine>,
     /// Theme for colors
     theme: DiffTheme,
+    /// Rendering mode (virtualized or full buffer)
+    render_mode: RenderMode,
 }
 
 impl DiffTextView {
@@ -74,18 +94,27 @@ impl DiffTextView {
             new_text: new_text.to_string(),
             display_lines: Vec::new(),
             theme: DiffTheme::dark(),
+            render_mode: RenderMode::default(),
         };
         view.compute_display_lines();
         view
     }
 
     /// Set the theme
+    #[allow(dead_code)]
     pub fn with_theme(mut self, theme: DiffTheme) -> Self {
         self.theme = theme;
         self
     }
 
+    /// Set the render mode
+    pub fn with_render_mode(mut self, mode: RenderMode) -> Self {
+        self.render_mode = mode;
+        self
+    }
+
     /// Update the diff with new text
+    #[allow(dead_code)]
     pub fn update(&mut self, old_text: &str, new_text: &str) {
         self.old_text = old_text.to_string();
         self.new_text = new_text.to_string();
@@ -198,17 +227,8 @@ impl DiffTextView {
         }
     }
 
-    /// Get the background color for a line style
-    fn line_background(&self, style: DiffLineStyle) -> Hsla {
-        match style {
-            DiffLineStyle::Unchanged => self.theme.editor_background,
-            DiffLineStyle::Added => self.theme.added_line_background,
-            DiffLineStyle::Deleted => self.theme.deleted_line_background,
-        }
-    }
-
-    /// Render a single line
-    fn render_line(&self, line: &DiffDisplayLine) -> impl IntoElement {
+    /// Render a single line (used by both render modes)
+    fn render_line(&self, line: &DiffDisplayLine, idx: usize) -> impl IntoElement {
         // Add a prefix indicator for the line type
         let prefix = match line.style {
             DiffLineStyle::Unchanged => "  ",
@@ -217,34 +237,111 @@ impl DiffTextView {
         };
 
         let content = if line.content.is_empty() {
-            // For empty lines, still show the prefix and some space
             format!("{}", prefix)
         } else {
             format!("{}{}", prefix, line.content)
         };
 
+        let line_bg = match line.style {
+            DiffLineStyle::Unchanged => self.theme.editor_background,
+            DiffLineStyle::Added => self.theme.added_line_background,
+            DiffLineStyle::Deleted => self.theme.deleted_line_background,
+        };
+
         div()
+            .id(idx)
             .w_full()
             .px_2()
             .py(px(1.0))
-            .bg(self.line_background(line.style))
+            .bg(line_bg)
             .text_color(self.theme.text)
             .font_family("monospace")
             .text_sm()
             .child(content)
     }
+
+    /// Render using uniform_list for efficient virtualized rendering
+    /// Only visible lines are rendered, best for large diffs
+    fn render_virtualized(&self) -> impl IntoElement {
+        let line_count = self.display_lines.len();
+        let theme = self.theme.clone();
+        let display_lines = self.display_lines.clone();
+
+        div()
+            .id("diff-text-view")
+            .size_full()
+            .bg(self.theme.editor_background)
+            .border_1()
+            .border_color(self.theme.border)
+            .child(
+                uniform_list(
+                    "diff-lines",
+                    line_count,
+                    move |range, _window, _cx| {
+                        range.map(|idx| {
+                            let line = &display_lines[idx];
+
+                            // Add a prefix indicator for the line type
+                            let prefix = match line.style {
+                                DiffLineStyle::Unchanged => "  ",
+                                DiffLineStyle::Added => "+ ",
+                                DiffLineStyle::Deleted => "- ",
+                            };
+
+                            let content = if line.content.is_empty() {
+                                format!("{}", prefix)
+                            } else {
+                                format!("{}{}", prefix, line.content)
+                            };
+
+                            let line_bg = match line.style {
+                                DiffLineStyle::Unchanged => theme.editor_background,
+                                DiffLineStyle::Added => theme.added_line_background,
+                                DiffLineStyle::Deleted => theme.deleted_line_background,
+                            };
+
+                            div()
+                                .id(idx)
+                                .w_full()
+                                .px_2()
+                                .py(px(1.0))
+                                .bg(line_bg)
+                                .text_color(theme.text)
+                                .font_family("monospace")
+                                .text_sm()
+                                .child(content)
+                        }).collect::<Vec<_>>()
+                    },
+                )
+                .size_full()
+            )
+    }
+
+    /// Render all lines in a scrollable container
+    /// All lines are rendered at once, best for embedding in a larger buffer
+    fn render_full_buffer(&self) -> impl IntoElement {
+        div()
+            .id("diff-text-view-full")
+            .size_full()
+            .bg(self.theme.editor_background)
+            .border_1()
+            .border_color(self.theme.border)
+            .overflow_y_scroll()
+            .children(
+                self.display_lines
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, line)| self.render_line(line, idx))
+            )
+    }
 }
 
 impl Render for DiffTextView {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .id("diff-text-view")
-            .size_full()
-            .overflow_y_scroll()
-            .bg(self.theme.editor_background)
-            .border_1()
-            .border_color(self.theme.border)
-            .children(self.display_lines.iter().map(|line| self.render_line(line)))
+        match self.render_mode {
+            RenderMode::Virtualized => self.render_virtualized().into_any_element(),
+            RenderMode::FullBuffer => self.render_full_buffer().into_any_element(),
+        }
     }
 }
 
