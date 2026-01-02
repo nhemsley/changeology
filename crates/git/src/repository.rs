@@ -1,8 +1,27 @@
 use anyhow::{anyhow, Context, Result};
-use git2::{Diff, DiffOptions, Repository as Git2Repository};
+use git2::{Diff, DiffOptions, Repository as Git2Repository, Sort};
 use std::path::{Path, PathBuf};
 
 use crate::status::{StatusEntry, StatusKind, StatusList};
+
+/// Represents a git commit
+#[derive(Debug, Clone)]
+pub struct Commit {
+    /// The commit's SHA-1 hash
+    pub id: String,
+    /// The commit's short hash (first 7 characters)
+    pub short_id: String,
+    /// The commit message
+    pub message: String,
+    /// The commit author name
+    pub author_name: String,
+    /// The commit author email
+    pub author_email: String,
+    /// The commit timestamp (seconds since epoch)
+    pub time: i64,
+    /// Parent commit IDs
+    pub parent_ids: Vec<String>,
+}
 
 /// A wrapper around git2::Repository with additional functionality
 pub struct Repository {
@@ -63,8 +82,14 @@ impl Repository {
 
     /// Get the content of a file from the repository HEAD
     pub fn get_head_content(&self, path: &str) -> Result<Option<String>> {
-        let obj = match self.inner.revparse_single("HEAD")? {
-            obj => obj,
+        self.get_content_at_revision("HEAD", path)
+    }
+
+    /// Get the content of a file at a specific commit/revision
+    pub fn get_content_at_revision(&self, revision: &str, path: &str) -> Result<Option<String>> {
+        let obj = match self.inner.revparse_single(revision) {
+            Ok(obj) => obj,
+            Err(_) => return Ok(None),
         };
 
         let commit = obj.peel_to_commit()?;
@@ -158,5 +183,116 @@ impl Repository {
             .diff_tree_to_index(Some(&head_tree), None, Some(&mut diff_opts))?;
 
         Ok(diff)
+    }
+
+    /// Get the commit history, optionally limited to a maximum count
+    pub fn log(&self, max_count: Option<usize>) -> Result<Vec<Commit>> {
+        let mut revwalk = self.inner.revwalk()?;
+        revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)?;
+        revwalk.push_head()?;
+
+        let mut commits = Vec::new();
+        let limit = max_count.unwrap_or(usize::MAX);
+
+        for (i, oid_result) in revwalk.enumerate() {
+            if i >= limit {
+                break;
+            }
+
+            let oid = oid_result?;
+            let commit = self.inner.find_commit(oid)?;
+
+            let message = commit
+                .message()
+                .unwrap_or("")
+                .lines()
+                .next()
+                .unwrap_or("")
+                .to_string();
+
+            let author = commit.author();
+            let author_name = author.name().unwrap_or("Unknown").to_string();
+            let author_email = author.email().unwrap_or("").to_string();
+
+            let parent_ids: Vec<String> = commit.parent_ids().map(|id| id.to_string()).collect();
+
+            commits.push(Commit {
+                id: oid.to_string(),
+                short_id: format!("{:.7}", oid),
+                message,
+                author_name,
+                author_email,
+                time: commit.time().seconds(),
+                parent_ids,
+            });
+        }
+
+        Ok(commits)
+    }
+
+    /// Get a specific commit by its ID (can be short or full hash)
+    pub fn get_commit(&self, id: &str) -> Result<Commit> {
+        let obj = self.inner.revparse_single(id)?;
+        let commit = obj.peel_to_commit()?;
+        let oid = commit.id();
+
+        let message = commit
+            .message()
+            .unwrap_or("")
+            .lines()
+            .next()
+            .unwrap_or("")
+            .to_string();
+
+        let author = commit.author();
+        let author_name = author.name().unwrap_or("Unknown").to_string();
+        let author_email = author.email().unwrap_or("").to_string();
+
+        let parent_ids: Vec<String> = commit.parent_ids().map(|id| id.to_string()).collect();
+
+        Ok(Commit {
+            id: oid.to_string(),
+            short_id: format!("{:.7}", oid),
+            message,
+            author_name,
+            author_email,
+            time: commit.time().seconds(),
+            parent_ids,
+        })
+    }
+
+    /// Get the files changed in a commit
+    pub fn get_commit_files(&self, commit_id: &str) -> Result<Vec<String>> {
+        let obj = self.inner.revparse_single(commit_id)?;
+        let commit = obj.peel_to_commit()?;
+        let commit_tree = commit.tree()?;
+
+        let parent_tree = if commit.parent_count() > 0 {
+            Some(commit.parent(0)?.tree()?)
+        } else {
+            None
+        };
+
+        let mut diff_opts = DiffOptions::new();
+        let diff = self.inner.diff_tree_to_tree(
+            parent_tree.as_ref(),
+            Some(&commit_tree),
+            Some(&mut diff_opts),
+        )?;
+
+        let mut files = Vec::new();
+        diff.foreach(
+            &mut |delta, _| {
+                if let Some(path) = delta.new_file().path() {
+                    files.push(path.to_string_lossy().to_string());
+                }
+                true
+            },
+            None,
+            None,
+            None,
+        )?;
+
+        Ok(files)
     }
 }

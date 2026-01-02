@@ -4,5 +4,5 @@
 mod repository;
 mod status;
 
-pub use repository::Repository;
+pub use repository::{Commit, Repository};
 pub use status::{FileStatus, StatusEntry, StatusKind, StatusList};

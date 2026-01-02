@@ -1,30 +1,38 @@
-// use gpui::*;
+mod app;
+mod menu;
+mod panels;
 
-// struct HelloWorld {
-//     text: SharedString,
-// }
-
-// impl Render for HelloWorld {
-//     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-//         div()
-//             .flex()
-//             .bg(rgb(0xe5e5e5)) // Light grey
-//             .size_full()
-//             .justify_center()
-//             .items_center()
-//             .text_xl()
-//             .text_color(rgb(0x333333)) // Dark grey text for better contrast on light background
-//             .child(format!("Hello, {}!", &self.text))
-//     }
-// }
+use gpui::*;
+use gpui_component::{Root, TitleBar};
 
 fn main() {
-    //     Application::new().run(|cx: &mut App| {
-    //         cx.open_window(WindowOptions::default(), |_, cx| {
-    //             cx.new(|_cx| HelloWorld {
-    //                 text: "World".into(),
-    //             })
-    //         })
-    //         .unwrap();
-    //     });
+    let app = Application::new();
+
+    app.run(move |cx| {
+        // REQUIRED: Initialize gpui-component before using any features
+        gpui_component::init(cx);
+
+        // Register actions
+        menu::register_actions(cx);
+
+        cx.spawn(async move |cx| {
+            let options = WindowOptions {
+                titlebar: Some(TitleBar::title_bar_options()),
+                window_bounds: Some(WindowBounds::Windowed(Bounds::new(
+                    Point::new(px(100.), px(100.)),
+                    size(px(1200.), px(800.)),
+                ))),
+                ..Default::default()
+            };
+
+            cx.open_window(options, |window, cx| {
+                let view = cx.new(|cx| app::ChangeologyApp::new(window, cx));
+                // REQUIRED: Root must wrap the application view
+                cx.new(|cx| Root::new(view, window, cx))
+            })?;
+
+            Ok::<_, anyhow::Error>(())
+        })
+        .detach();
+    });
 }

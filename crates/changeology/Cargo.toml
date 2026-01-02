@@ -9,6 +9,16 @@ name = "changeology"
 path = "src/changeology.rs"
 
 [dependencies]
-rand = "0.8.5"
+# Workspace crates
 buffer-diff = { path = "../diff" }
 git = { path = "../git" }
+
+# GPUI (from workspace)
+gpui.workspace = true
+
+# GPUI Component (from workspace)
+gpui-component.workspace = true
+
+# General
+anyhow.workspace = true
+rand = "0.8.5"
