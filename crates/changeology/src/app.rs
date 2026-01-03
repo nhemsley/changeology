@@ -3,6 +3,7 @@ use gpui_component::scroll::ScrollableElement;
 
 use gpui_component::{
     button::{Button, ButtonVariants},
+    clipboard::Clipboard,
     h_flex,
     list::ListItem,
     menu::{DropdownMenu, PopupMenu},
@@ -426,6 +427,16 @@ impl ChangeologyApp {
     }
 
     fn render_file_diff(&self, file_diff: &FileDiff, cx: &mut Context<Self>) -> impl IntoElement {
+        let file_path = file_diff.path.clone();
+        let commit_hash = self
+            .selected_commit
+            .and_then(|idx| self.commits.get(idx))
+            .map(|commit| commit.id.clone())
+            .unwrap_or_default();
+
+        let copy_value = format!("{} {}", commit_hash, file_path);
+        let clipboard_id = SharedString::from(format!("copy-file-{}", file_path));
+
         v_flex()
             .w_full()
             .border_1()
@@ -445,13 +456,20 @@ impl ChangeologyApp {
                         h_flex()
                             .gap_2()
                             .items_center()
-                            .child(Icon::new(IconName::File).small())
+                            .justify_between()
                             .child(
-                                div()
-                                    .text_sm()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .child(file_diff.path.clone()),
-                            ),
+                                h_flex()
+                                    .gap_2()
+                                    .items_center()
+                                    .child(Icon::new(IconName::File).small())
+                                    .child(
+                                        div()
+                                            .text_sm()
+                                            .font_weight(gpui::FontWeight::SEMIBOLD)
+                                            .child(file_diff.path.clone()),
+                                    ),
+                            )
+                            .child(Clipboard::new(clipboard_id).value(copy_value)),
                     ),
             )
             .child(
