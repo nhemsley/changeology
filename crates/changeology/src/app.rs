@@ -504,11 +504,15 @@ impl ChangeologyApp {
                 }
                 DiffHunkStatus::Modified => {
                     // Use the line_types from the hunk to determine what changed
-                    for (i, &line_type) in hunk.line_types.iter().enumerate() {
+                    // Track separate offsets for old and new lines
+                    let mut old_offset = 0;
+                    let mut new_offset = 0;
+
+                    for &line_type in hunk.line_types.iter() {
                         match line_type {
                             DiffLineType::OldOnly => {
                                 // Line was removed
-                                let old_line_idx = hunk.old_range.start + i;
+                                let old_line_idx = hunk.old_range.start + old_offset;
                                 if let Some(line_content) = old_lines.get(old_line_idx) {
                                     lines.push(self.render_diff_line(
                                         Some(old_line_idx + 1),
@@ -518,10 +522,11 @@ impl ChangeologyApp {
                                         cx,
                                     ));
                                 }
+                                old_offset += 1;
                             }
                             DiffLineType::NewOnly => {
                                 // Line was added
-                                let new_line_idx = hunk.new_range.start + i;
+                                let new_line_idx = hunk.new_range.start + new_offset;
                                 if let Some(line_content) = new_lines.get(new_line_idx) {
                                     lines.push(self.render_diff_line(
                                         None,
@@ -531,11 +536,12 @@ impl ChangeologyApp {
                                         cx,
                                     ));
                                 }
+                                new_offset += 1;
                             }
                             DiffLineType::Both => {
                                 // Line exists in both (unchanged in modified hunk)
-                                let old_line_idx = hunk.old_range.start + i;
-                                let new_line_idx = hunk.new_range.start + i;
+                                let old_line_idx = hunk.old_range.start + old_offset;
+                                let new_line_idx = hunk.new_range.start + new_offset;
                                 if let Some(line_content) = old_lines.get(old_line_idx) {
                                     lines.push(self.render_diff_line(
                                         Some(old_line_idx + 1),
@@ -545,6 +551,8 @@ impl ChangeologyApp {
                                         cx,
                                     ));
                                 }
+                                old_offset += 1;
+                                new_offset += 1;
                             }
                         }
                     }
