@@ -3,7 +3,8 @@ members = [
     "crates/changeology",
     "crates/git",
     "crates/diff",
-    "crates/diff-ui"
+    "crates/diff-ui",
+    "crates/tree-viewer"
 ]
 default-members = ["crates/changeology", "crates/git", "crates/diff"]
 resolver = "2"

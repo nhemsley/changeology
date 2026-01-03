@@ -1,0 +1,12 @@
+[package]
+name = "tree-viewer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = "0.15"
+smooth-bevy-cameras = "0.13"
+
+[[bin]]
+name = "tree-viewer"
+path = "src/main.rs"
