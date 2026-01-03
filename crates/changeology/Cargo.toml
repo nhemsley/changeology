@@ -17,6 +17,7 @@ git = { path = "../git" }
 gpui.workspace = true
 
 # GPUI Component (from workspace)
+gpui-component-assets.workspace = true
 gpui-component.workspace = true
 
 # General
