@@ -33,8 +33,8 @@ A 3D visualization tool for exploring hierarchical file structures using Bevy en
 - `S` - Move backward
 - `A` - Strafe left
 - `D` - Strafe right
-- `E` - Move up
-- `Q` - Move down
+- `E` or `Space` - Move up
+- `Q` or `Shift` - Move down
 
 **Speed:**
 - `Alt` (hold) - 5x speed multiplier
@@ -72,7 +72,7 @@ This dual-mode system allows seamless switching between:
 
 ### Components
 
-- `FlyCam` - Camera movement component with configurable speed
+- `FpsCameraController` - Camera controller from smooth-bevy-cameras
 - `InputMode` - Global resource controlling input interpretation
 - `Transform` - Camera position and rotation
 

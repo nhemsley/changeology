@@ -61,18 +61,18 @@ Four main systems manage the input mode:
    - Controls cursor grab mode (None vs Locked)
    - Only runs when InputMode changes (efficient)
 
-3. **`update_camera_controller`** - Enables/disables camera rotation
+3. **`update_camera_controller`** - Enables/disables camera controller
    - Reacts to InputMode changes
-   - Disables FpsCameraController in Pointer mode
-   - Enables FpsCameraController in Navigator mode
-   - Prevents camera rotation when interacting with UI
+   - Disables FpsCameraController in Pointer mode (no movement or rotation)
+   - Enables FpsCameraController in Navigator mode (full control)
+   - Prevents all camera control when interacting with UI
    - Only runs when InputMode changes (efficient)
 
-4. **`camera_movement`** - Handles navigation
+4. **`handle_speed_modifier`** - Dynamically adjusts movement speed
    - Only active in Navigator mode
-   - Implements custom WASD + Q/E movement
-   - Applies Alt speed modifier (5x)
-   - Respects time delta for frame-rate independence
+   - Monitors Alt key state
+   - Applies 5x speed multiplier when Alt is held
+   - Adjusts FpsCameraController.translate_sensitivity in real-time
 
 ### Controls Mapping
 
@@ -84,8 +84,8 @@ Four main systems manage the input mode:
 | `S` | Move backward | Opposite of forward |
 | `A` | Strafe left | Based on camera right vector |
 | `D` | Strafe right | Based on camera right vector |
-| `E` | Move up | World-space up (Y+) |
-| `Q` | Move down | World-space down (Y-) |
+| `Space` | Move up | World-space up (Y+) |
+| `Shift` | Move down | World-space down (Y-) |
 | `Alt` (hold) | Speed boost | 5x multiplier |
 | Mouse movement | Camera rotation | Handled by smooth-bevy-cameras |
 
@@ -112,30 +112,34 @@ This provides:
 - Normal speed: 5 units/second
 - Boosted speed: 25 units/second
 
-### Component Design
+### Controller Configuration
 
 ```rust
-#[derive(Component)]
-struct FlyCam {
-    base_speed: f32,
+FpsCameraController {
+    enabled: false, // Start disabled (Pointer mode)
+    mouse_rotate_sensitivity: Vec2::splat(0.1),
+    translate_sensitivity: 5.0,
+    ..default()
 }
 ```
 
-The `FlyCam` component marks cameras that support navigation and stores their movement parameters. This allows for:
-- Multiple cameras with different speeds
-- Per-camera configuration
-- Easy extension with additional parameters
+The `FpsCameraController` from smooth-bevy-cameras handles all camera movement and rotation:
+- `enabled` - Toggled by input mode system
+- `mouse_rotate_sensitivity` - Mouse look sensitivity
+- `translate_sensitivity` - Movement speed (dynamically adjusted for Alt modifier)
+- Built-in WASD + Space/Shift controls
 
 ## Integration with smooth-bevy-cameras
 
-The system works alongside `smooth-bevy-cameras` FPS controller:
+The system fully utilizes `smooth-bevy-cameras` FPS controller:
 
-- `smooth-bevy-cameras` handles mouse look (rotation)
-- Our custom system handles translation (position)
+- `smooth-bevy-cameras` handles both mouse look (rotation) and keyboard movement (translation)
+- Built-in WASD + Space/Shift controls for movement
 - `FpsCameraController.enabled` is toggled based on InputMode
-- Controller is disabled in Pointer mode (no rotation)
-- Controller is enabled in Navigator mode (full rotation)
-- Smooth interpolation provided by the library
+- Controller is completely disabled in Pointer mode (no movement or rotation)
+- Controller is enabled in Navigator mode (full movement and rotation)
+- Speed is dynamically adjusted via `translate_sensitivity` for Alt modifier
+- Smooth interpolation and acceleration provided by the library
 
 ## Future Extensions
 
@@ -231,9 +235,10 @@ Each mode can carry its own state and parameters.
 - [ ] Tab toggles modes correctly
 - [ ] Cursor visibility matches mode
 - [ ] WASD works only in Navigator mode
-- [ ] Q/E vertical movement works
-- [ ] Alt speed boost functions
+- [ ] Space/Shift vertical movement works
+- [ ] Alt speed boost functions (5x speed)
 - [ ] Mouse look only in Navigator mode
+- [ ] All camera control disabled in Pointer mode
 - [ ] UI interaction only in Pointer mode
 
 ### Future Automated Tests

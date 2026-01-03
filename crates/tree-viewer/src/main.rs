@@ -1,7 +1,8 @@
+use bevy::input::mouse::MouseMotion;
 use bevy::prelude::*;
 use bevy::window::CursorGrabMode;
 use smooth_bevy_cameras::{
-    controllers::fps::{FpsCameraBundle, FpsCameraController, FpsCameraPlugin},
+    controllers::fps::{ControlEvent, FpsCameraBundle, FpsCameraController, FpsCameraPlugin},
     LookTransformPlugin,
 };
 
@@ -9,16 +10,16 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(LookTransformPlugin)
-        .add_plugins(FpsCameraPlugin::default())
+        .add_plugins(FpsCameraPlugin::new(false)) // Override default input system
         .init_resource::<InputMode>()
         .add_systems(Startup, setup)
         .add_systems(
             Update,
             (
                 toggle_input_mode,
-                camera_movement,
                 update_cursor_state,
                 update_camera_controller,
+                custom_input_map,
             ),
         )
         .run();
@@ -39,32 +40,24 @@ impl Default for InputMode {
     }
 }
 
-#[derive(Component)]
-struct FlyCam {
-    /// Base movement speed
-    base_speed: f32,
-}
-
-impl Default for FlyCam {
-    fn default() -> Self {
-        Self { base_speed: 5.0 }
-    }
-}
-
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    // Camera with FPS controller and FlyCam component
+    // Camera with FPS controller from smooth-bevy-cameras
     commands
         .spawn((
             Camera3d::default(),
             Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
-            FlyCam::default(),
         ))
         .insert(FpsCameraBundle::new(
-            FpsCameraController::default(),
+            FpsCameraController {
+                enabled: false, // Start disabled (Pointer mode)
+                mouse_rotate_sensitivity: Vec2::splat(0.2),
+                translate_sensitivity: 5.0,
+                smoothing_weight: 0.9,
+            },
             Vec3::new(0.0, 5.0, 10.0),
             Vec3::ZERO,
             Vec3::Y,
@@ -153,63 +146,6 @@ fn update_cursor_state(input_mode: Res<InputMode>, mut windows: Query<&mut Windo
     }
 }
 
-/// Custom camera movement system with Q/E vertical controls and Alt speed modifier
-fn camera_movement(
-    time: Res<Time>,
-    keys: Res<ButtonInput<KeyCode>>,
-    input_mode: Res<InputMode>,
-    mut query: Query<(&mut Transform, &FlyCam)>,
-) {
-    // Only move camera in Navigator mode
-    if *input_mode != InputMode::Navigator {
-        return;
-    }
-
-    for (mut transform, fly_cam) in query.iter_mut() {
-        let mut velocity = Vec3::ZERO;
-        let forward = transform.forward();
-        let right = transform.right();
-
-        // Speed multiplier: 5x when Alt is held
-        let speed_multiplier = if keys.pressed(KeyCode::AltLeft) || keys.pressed(KeyCode::AltRight)
-        {
-            5.0
-        } else {
-            1.0
-        };
-
-        // WASD for horizontal movement
-        if keys.pressed(KeyCode::KeyW) {
-            velocity += *forward;
-        }
-        if keys.pressed(KeyCode::KeyS) {
-            velocity -= *forward;
-        }
-        if keys.pressed(KeyCode::KeyA) {
-            velocity -= *right;
-        }
-        if keys.pressed(KeyCode::KeyD) {
-            velocity += *right;
-        }
-
-        // Q for down, E for up (vertical movement)
-        if keys.pressed(KeyCode::KeyQ) {
-            velocity -= Vec3::Y;
-        }
-        if keys.pressed(KeyCode::KeyE) {
-            velocity += Vec3::Y;
-        }
-
-        // Apply movement with speed modifiers
-        velocity = velocity.normalize_or_zero()
-            * fly_cam.base_speed
-            * speed_multiplier
-            * time.delta_secs();
-
-        transform.translation += velocity;
-    }
-}
-
 /// Enable/disable camera controller based on input mode
 fn update_camera_controller(
     input_mode: Res<InputMode>,
@@ -221,5 +157,54 @@ fn update_camera_controller(
 
     for mut controller in query.iter_mut() {
         controller.enabled = *input_mode == InputMode::Navigator;
+    }
+}
+
+/// Custom input map using smooth-bevy-cameras message system
+/// Overrides smooth-bevy-cameras default_input_map
+/// - Uses Q/E for vertical movement instead of Shift/Space
+/// - Applies Alt modifier for 5x speed boost
+
+pub fn custom_input_map(
+    mut events: EventWriter<ControlEvent>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut mouse_motion_events: EventReader<MouseMotion>,
+    controllers: Query<&FpsCameraController>,
+) {
+    // Can only control one camera at a time.
+    let controller = if let Some(controller) = controllers.iter().find(|c| c.enabled) {
+        controller
+    } else {
+        return;
+    };
+    let FpsCameraController {
+        translate_sensitivity,
+        mouse_rotate_sensitivity,
+        ..
+    } = *controller;
+
+    let mut cursor_delta = Vec2::ZERO;
+    for event in mouse_motion_events.read() {
+        cursor_delta += event.delta;
+    }
+
+    events.send(ControlEvent::Rotate(
+        mouse_rotate_sensitivity * cursor_delta,
+    ));
+
+    for (key, dir) in [
+        (KeyCode::KeyW, Vec3::Z),
+        (KeyCode::KeyA, Vec3::X),
+        (KeyCode::KeyS, -Vec3::Z),
+        (KeyCode::KeyD, -Vec3::X),
+        (KeyCode::KeyQ, -Vec3::Y),
+        (KeyCode::KeyE, Vec3::Y),
+    ]
+    .iter()
+    .cloned()
+    {
+        if keyboard.pressed(key) {
+            events.send(ControlEvent::TranslateEye(translate_sensitivity * dir));
+        }
     }
 }
