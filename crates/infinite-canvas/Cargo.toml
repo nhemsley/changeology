@@ -1,0 +1,28 @@
+[package]
+name = "infinite-canvas"
+version = "0.1.0"
+edition = "2021"
+description = "An infinite canvas component for GPUI with pan, zoom, and layout algorithms"
+license = "Apache-2.0"
+
+[lib]
+name = "infinite_canvas"
+path = "src/lib.rs"
+
+[[example]]
+name = "basic"
+path = "examples/basic.rs"
+
+[dependencies]
+gpui.workspace = true
+gpui-component.workspace = true
+
+anyhow.workspace = true
+serde.workspace = true
+smallvec = "1"
+
+[dev-dependencies]
+gpui-component-assets.workspace = true
+
+[lints]
+workspace = true
