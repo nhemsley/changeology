@@ -7,6 +7,13 @@ edition = "2021"
 bevy = "0.15"
 smooth-bevy-cameras = "0.13"
 
+[dev-dependencies]
+tempfile = "3.8"
+
+[lib]
+name = "tree_viewer"
+path = "src/lib.rs"
+
 [[bin]]
 name = "tree-viewer"
 path = "src/main.rs"

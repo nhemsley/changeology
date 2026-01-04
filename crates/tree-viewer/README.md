@@ -58,6 +58,51 @@ Or from the crates/tree-viewer directory:
 cargo run
 ```
 
+## Examples
+
+### List Directory Structure
+
+A CLI tool that loads and displays a directory hierarchy:
+
+```bash
+# List current directory
+cargo run --package tree-viewer --example list_directory
+
+# List specific directory
+cargo run --package tree-viewer --example list_directory /path/to/directory
+
+# List the tree module
+cargo run --package tree-viewer --example list_directory crates/tree-viewer/src/tree
+```
+
+**Output:**
+```
+Loading directory: crates/tree-viewer/src/tree
+
+Loading directory tree...
+
+Tree loaded successfully!
+Total nodes: 5
+Files: 4
+Directories: 1
+
+Directory Structure:
+═══════════════════════════════
+
+📁 tree (4 items)
+  📄 filesystem.rs (11.92 KB)
+  📄 mod.rs (585 B)
+  📄 node.rs (4.48 KB)
+  📄 traits.rs (12.77 KB)
+
+═══════════════════════════════
+Summary:
+  Total items: 5
+  Directories: 1
+  Files: 4
+  Total size: 29.74 KB
+```
+
 ## Architecture
 
 ### Core Concepts
