@@ -519,29 +519,39 @@ struct CanvasState {
 ## Implementation Plan
 
 ### Phase 1: Core Canvas
-- [ ] `Camera` struct with coordinate conversion
-- [ ] Basic `InfiniteCanvas` component
-- [ ] Pan with middle mouse / space+drag
-- [ ] Zoom with scroll wheel
+- [x] `Camera` struct with coordinate conversion
+- [x] Basic `InfiniteCanvas` component
+- [ ] Pan with middle mouse / space+drag ⚠️ **NEEDS FIX** - Requires stateful approach
+- [ ] Zoom with scroll wheel ⚠️ **NEEDS FIX** - Event not triggering camera updates
 
 ### Phase 2: Items & Interaction
-- [ ] `CanvasItem` type
-- [ ] Render items with proper transforms
-- [ ] Viewport culling
+- [x] `CanvasItem` type
+- [x] Render items with proper transforms (manual coordinate conversion)
+- [x] Viewport culling
 - [ ] Item selection
 
 ### Phase 3: Layout Algorithms
-- [ ] Grid layout
-- [ ] Tree layout (hierarchical)
+- [x] Grid layout
+- [x] Tree layout (hierarchical - 4 orientations)
 - [ ] Force-directed layout
 - [ ] Treemap layout
+- [x] Pack layout
 
 ### Phase 4: Polish
-- [ ] Background grid
+- [x] Background grid
 - [ ] Minimap
 - [ ] Zoom to fit
 - [ ] Keyboard shortcuts
 - [ ] Touch/trackpad gestures
+
+### Current Issues
+1. **State Management**: Mouse events in `paint()` can't mutate camera state
+   - Need to refactor to use GPUI's stateful entity pattern
+   - Or implement callback-based state management with parent view
+2. **Zoom Not Working**: Scroll wheel events don't update camera
+   - Callback fires but state doesn't persist
+3. **Pan Not Implemented**: Middle-click drag needs stateful tracking
+   - Requires drag start/end state and position tracking
 
 ---
 
