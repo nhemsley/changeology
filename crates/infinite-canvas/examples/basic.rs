@@ -48,7 +48,6 @@ fn main() {
 }
 
 struct ExampleView {
-    camera: Camera,
     items: Vec<CanvasItem>,
 }
 
@@ -78,20 +77,13 @@ impl ExampleView {
             ),
         ];
 
-        Self {
-            camera: Camera::default(),
-            items,
-        }
+        Self { items }
     }
 }
 
 impl Render for ExampleView {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        let camera = self.camera;
         let items = self.items.clone();
-
-        let offset_x: f32 = camera.offset.x.into();
-        let offset_y: f32 = camera.offset.y.into();
 
         div()
             .size_full()
@@ -115,18 +107,18 @@ impl Render for ExampleView {
                             .text_color(rgb(0xcccccc))
                             .child("Infinite Canvas Example"),
                     )
-                    .child(div().text_xs().text_color(rgb(0x888888)).child(format!(
-                        "Zoom: {:.0}% | Offset: ({:.0}, {:.0})",
-                        camera.zoom * 100.0,
-                        offset_x,
-                        offset_y
-                    ))),
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(rgb(0x888888))
+                            .child("Scroll to zoom • Middle-click drag to pan"),
+                    ),
             )
             .child(
                 // Canvas area
                 div().flex_1().w_full().child(
                     InfiniteCanvas::new("main-canvas")
-                        .camera(camera)
+                        .camera(Camera::default())
                         .options(
                             CanvasOptions::new()
                                 .show_grid(true)

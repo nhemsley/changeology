@@ -6,25 +6,28 @@
 use gpui::{
     div, point, prelude::*, px, AnyElement, App, Bounds, DefiniteLength, Element, ElementId,
     GlobalElementId, Hitbox, HitboxBehavior, InspectorElementId, IntoElement, LayoutId, Length,
-    ParentElement, Pixels, Point, ScrollWheelEvent, Size, Style, Styled, Window,
+    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement, Pixels, Point,
+    ScrollWheelEvent, Size, Style, Styled, Window,
 };
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use crate::camera::Camera;
 use crate::item::{CanvasItem, CanvasItems};
 use crate::options::CanvasOptions;
 
-/// State for tracking drag operations.
-#[allow(dead_code)]
-#[derive(Clone, Debug, Default)]
-struct DragState {
-    /// Whether we're currently panning.
-    is_panning: bool,
+/// Persistent state for the canvas element, stored in GPUI's element state system.
+/// This persists across re-renders when the element has the same ID.
+#[derive(Default)]
+struct CanvasElementState {
+    /// Current camera state (persists across renders).
+    camera: Option<Rc<RefCell<Camera>>>,
 
-    /// The last mouse position during a drag.
-    last_position: Point<Pixels>,
+    /// Whether we're currently panning with middle mouse.
+    is_panning: Option<Rc<RefCell<bool>>>,
 
-    /// Whether space is held for space-drag panning.
-    space_held: bool,
+    /// The last mouse position during a pan operation.
+    last_pan_position: Option<Rc<RefCell<Point<Pixels>>>>,
 }
 
 /// The infinite canvas component.
@@ -57,8 +60,8 @@ pub struct InfiniteCanvas<D: Clone + 'static = ()> {
     /// Unique identifier for this canvas.
     id: ElementId,
 
-    /// The camera controlling the viewport.
-    camera: Camera,
+    /// Initial camera state (used on first render only).
+    initial_camera: Camera,
 
     /// Canvas options.
     options: CanvasOptions,
@@ -67,7 +70,7 @@ pub struct InfiniteCanvas<D: Clone + 'static = ()> {
     items: CanvasItems<D>,
 
     /// Optional callback when camera changes.
-    on_camera_change: Option<Box<dyn Fn(&Camera) + 'static>>,
+    on_camera_change: Option<Rc<dyn Fn(Camera) + 'static>>,
 
     /// Optional callback when an item is clicked.
     on_item_click: Option<Box<dyn Fn(&CanvasItem<D>) + 'static>>,
@@ -81,7 +84,7 @@ impl<D: Clone + 'static> InfiniteCanvas<D> {
     pub fn new(id: impl Into<ElementId>) -> Self {
         Self {
             id: id.into(),
-            camera: Camera::default(),
+            initial_camera: Camera::default(),
             options: CanvasOptions::default(),
             items: CanvasItems::new(),
             on_camera_change: None,
@@ -90,9 +93,10 @@ impl<D: Clone + 'static> InfiniteCanvas<D> {
         }
     }
 
-    /// Set the camera.
+    /// Set the initial camera state.
+    /// Note: This only affects the first render. After that, the canvas maintains its own state.
     pub fn camera(mut self, camera: Camera) -> Self {
-        self.camera = camera;
+        self.initial_camera = camera;
         self
     }
 
@@ -115,8 +119,8 @@ impl<D: Clone + 'static> InfiniteCanvas<D> {
     }
 
     /// Set the camera change callback.
-    pub fn on_camera_change(mut self, callback: impl Fn(&Camera) + 'static) -> Self {
-        self.on_camera_change = Some(Box::new(callback));
+    pub fn on_camera_change(mut self, callback: impl Fn(Camera) + 'static) -> Self {
+        self.on_camera_change = Some(Rc::new(callback));
         self
     }
 
@@ -139,7 +143,7 @@ impl<D: Clone + 'static> InfiniteCanvas<D> {
 impl<D: Clone + 'static> RenderOnce for InfiniteCanvas<D> {
     fn render(self, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         let id = self.id.clone();
-        let camera = self.camera;
+        let initial_camera = self.initial_camera;
         let options = self.options.clone();
         let items = self.items.clone();
 
@@ -150,7 +154,7 @@ impl<D: Clone + 'static> RenderOnce for InfiniteCanvas<D> {
             .overflow_hidden()
             .bg(gpui::rgb(0x1e1e1e)) // Dark background
             .child(CanvasElement {
-                camera,
+                initial_camera,
                 options,
                 items,
                 render_item: self.render_item,
@@ -171,22 +175,23 @@ impl<D: Clone + 'static> From<Vec<CanvasItem<D>>> for CanvasItems<D> {
 // ============================================================================
 
 /// Internal element that handles canvas rendering and interaction.
-#[allow(dead_code)]
 struct CanvasElement<D: Clone + 'static> {
-    camera: Camera,
+    initial_camera: Camera,
     options: CanvasOptions,
     items: CanvasItems<D>,
+    #[allow(dead_code)]
     render_item: Option<Box<dyn Fn(&CanvasItem<D>, &Camera, &mut Window, &mut App) -> AnyElement>>,
-    on_camera_change: Option<Box<dyn Fn(&Camera) + 'static>>,
+    on_camera_change: Option<Rc<dyn Fn(Camera) + 'static>>,
+    #[allow(dead_code)]
     on_item_click: Option<Box<dyn Fn(&CanvasItem<D>) + 'static>>,
 }
 
 /// State needed after layout for painting.
-#[allow(dead_code)]
-struct CanvasElementState {
+struct CanvasElementPrepaintState {
     hitbox: Hitbox,
-    drag_state: DragState,
-    camera: Camera,
+    camera: Rc<RefCell<Camera>>,
+    is_panning: Rc<RefCell<bool>>,
+    last_pan_position: Rc<RefCell<Point<Pixels>>>,
 }
 
 impl<D: Clone + 'static> IntoElement for CanvasElement<D> {
@@ -199,7 +204,7 @@ impl<D: Clone + 'static> IntoElement for CanvasElement<D> {
 
 impl<D: Clone + 'static> Element for CanvasElement<D> {
     type RequestLayoutState = ();
-    type PrepaintState = CanvasElementState;
+    type PrepaintState = CanvasElementPrepaintState;
 
     fn id(&self) -> Option<ElementId> {
         Some("canvas-element".into())
@@ -227,7 +232,7 @@ impl<D: Clone + 'static> Element for CanvasElement<D> {
 
     fn prepaint(
         &mut self,
-        _id: Option<&GlobalElementId>,
+        global_id: Option<&GlobalElementId>,
         _inspector_id: Option<&InspectorElementId>,
         bounds: Bounds<Pixels>,
         _request_layout: &mut Self::RequestLayoutState,
@@ -236,10 +241,43 @@ impl<D: Clone + 'static> Element for CanvasElement<D> {
     ) -> Self::PrepaintState {
         let hitbox = window.insert_hitbox(bounds, HitboxBehavior::Normal);
 
-        CanvasElementState {
+        // Get or initialize persistent element state
+        let initial_camera = self.initial_camera;
+        let (camera, is_panning, last_pan_position) = window
+            .with_optional_element_state::<CanvasElementState, _>(
+                global_id,
+                |element_state, _window| {
+                    let mut state = element_state
+                        .map(|s| s.unwrap_or_default())
+                        .unwrap_or_default();
+
+                    // Initialize camera if not present
+                    let camera = state
+                        .camera
+                        .get_or_insert_with(|| Rc::new(RefCell::new(initial_camera)))
+                        .clone();
+
+                    // Initialize panning state
+                    let is_panning = state
+                        .is_panning
+                        .get_or_insert_with(|| Rc::new(RefCell::new(false)))
+                        .clone();
+
+                    // Initialize last pan position
+                    let last_pan_position = state
+                        .last_pan_position
+                        .get_or_insert_with(|| Rc::new(RefCell::new(point(px(0.), px(0.)))))
+                        .clone();
+
+                    ((camera, is_panning, last_pan_position), Some(state))
+                },
+            );
+
+        CanvasElementPrepaintState {
             hitbox,
-            drag_state: DragState::default(),
-            camera: self.camera,
+            camera,
+            is_panning,
+            last_pan_position,
         }
     }
 
@@ -253,13 +291,13 @@ impl<D: Clone + 'static> Element for CanvasElement<D> {
         window: &mut Window,
         cx: &mut App,
     ) {
-        let camera = &prepaint.camera;
+        let camera = prepaint.camera.borrow().clone();
         let options = &self.options;
         let hitbox = &prepaint.hitbox;
 
         // Draw background grid if enabled
         if options.show_grid {
-            self.paint_grid(bounds, camera, options, window, cx);
+            self.paint_grid(bounds, &camera, options, window, cx);
         }
 
         // Draw items
@@ -296,25 +334,24 @@ impl<D: Clone + 'static> Element for CanvasElement<D> {
                 continue;
             }
 
-            // Default rendering: draw a rounded rectangle
+            // Render the item (background)
             self.paint_default_item(adjusted_bounds, item, window, cx);
         }
 
-        // Handle mouse events
-        let options_clone = options.clone();
-        let on_camera_change = self.on_camera_change.take();
+        // Set up mouse event handlers
+        let view_id = window.current_view();
+        let hitbox_id = hitbox.id;
 
-        // Store current camera in window state for event handlers
-        let camera_state = prepaint.camera;
+        // Handle scroll wheel for zooming
+        if !options.locked {
+            let camera_rc = prepaint.camera.clone();
+            let options_clone = options.clone();
+            let on_camera_change = self.on_camera_change.clone();
 
-        // Mouse wheel for zooming
-        if !options_clone.locked {
-            let hitbox_id = hitbox.id;
-
-            window.on_mouse_event(move |event: &ScrollWheelEvent, phase, window, _cx| {
+            window.on_mouse_event(move |event: &ScrollWheelEvent, phase, window, cx| {
                 if phase.bubble() && hitbox_id.is_hovered(window) {
                     if options_clone.wheel_behavior.is_zoom() {
-                        let mut camera = camera_state;
+                        let mut camera = camera_rc.borrow_mut();
                         let delta = event.delta.pixel_delta(px(20.));
                         let zoom_factor =
                             1.0 - f32::from(delta.y) * options_clone.zoom_speed * 0.001;
@@ -326,9 +363,77 @@ impl<D: Clone + 'static> Element for CanvasElement<D> {
                             options_clone.max_zoom,
                         );
 
+                        let new_camera = *camera;
+                        drop(camera); // Release borrow before callback
+
                         if let Some(ref callback) = on_camera_change {
-                            callback(&camera);
+                            callback(new_camera);
                         }
+
+                        window.refresh();
+                        cx.notify(view_id);
+                    }
+                }
+            });
+        }
+
+        // Handle mouse down for starting pan (middle mouse button)
+        if !options.locked {
+            let is_panning = prepaint.is_panning.clone();
+            let last_pan_position = prepaint.last_pan_position.clone();
+
+            window.on_mouse_event(move |event: &MouseDownEvent, phase, window, _cx| {
+                if phase.bubble() && hitbox_id.is_hovered(window) {
+                    if event.button == MouseButton::Middle {
+                        *is_panning.borrow_mut() = true;
+                        *last_pan_position.borrow_mut() = event.position;
+                    }
+                }
+            });
+        }
+
+        // Handle mouse move for panning
+        if !options.locked {
+            let camera_rc = prepaint.camera.clone();
+            let is_panning = prepaint.is_panning.clone();
+            let last_pan_position = prepaint.last_pan_position.clone();
+            let on_camera_change = self.on_camera_change.clone();
+
+            window.on_mouse_event(move |event: &MouseMoveEvent, phase, window, cx| {
+                if phase.bubble() {
+                    let panning = *is_panning.borrow();
+                    // Check if we're panning with middle mouse button held
+                    if panning && event.pressed_button == Some(MouseButton::Middle) {
+                        let last_pos = *last_pan_position.borrow();
+                        let delta =
+                            point(event.position.x - last_pos.x, event.position.y - last_pos.y);
+
+                        let mut camera = camera_rc.borrow_mut();
+                        camera.pan(delta);
+                        let new_camera = *camera;
+                        drop(camera); // Release borrow
+
+                        *last_pan_position.borrow_mut() = event.position;
+
+                        if let Some(ref callback) = on_camera_change {
+                            callback(new_camera);
+                        }
+
+                        window.refresh();
+                        cx.notify(view_id);
+                    }
+                }
+            });
+        }
+
+        // Handle mouse up for ending pan
+        if !options.locked {
+            let is_panning = prepaint.is_panning.clone();
+
+            window.on_mouse_event(move |event: &MouseUpEvent, phase, _window, _cx| {
+                if phase.bubble() {
+                    if event.button == MouseButton::Middle {
+                        *is_panning.borrow_mut() = false;
                     }
                 }
             });

@@ -23,6 +23,3 @@ smallvec = "1"
 
 [dev-dependencies]
 gpui-component-assets.workspace = true
-
-[lints]
-workspace = true
