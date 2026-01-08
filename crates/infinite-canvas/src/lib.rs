@@ -29,12 +29,14 @@ mod canvas;
 mod item;
 pub mod layout;
 mod options;
+pub mod textured_provider;
 
 pub use camera::*;
 pub use canvas::*;
 pub use item::*;
 pub use layout::*;
 pub use options::*;
+pub use textured_provider::*;
 
 /// Re-export commonly used types
 pub mod prelude {
@@ -43,6 +45,10 @@ pub mod prelude {
     pub use crate::item::{CanvasItem, ItemId};
     pub use crate::layout::{GridLayout, Layout, TreeLayout};
     pub use crate::options::CanvasOptions;
+    pub use crate::textured_provider::{
+        CanvasItemDescriptor, CanvasItemId, CanvasItemsProvider, TextureState,
+        TexturedCanvasItemsProvider, TexturedItemElement,
+    };
 }
 
 /// Initialize the infinite canvas component.

@@ -7,6 +7,7 @@ members = [
     "crates/tree-viewer",
     "crates/infinite-canvas"
 ]
+exclude = [ "vendor" ]
 default-members = ["crates/changeology", "crates/git", "crates/diff", "crates/infinite-canvas"]
 resolver = "2"
 
@@ -16,7 +17,7 @@ git = { path = "crates/git" }
 buffer-diff = { path = "crates/diff" }
 
 # GPUI (from crates.io - must match gpui-component's dependency)
-gpui = "0.2.2"
+gpui = { path = "vendor/zed/crates/gpui" }
 
 # GPUI Component (from crates.io)
 gpui-component = "0.5.0"

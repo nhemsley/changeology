@@ -13,6 +13,16 @@ path = "src/lib.rs"
 name = "basic"
 path = "examples/basic.rs"
 
+[[example]]
+name = "textured"
+path = "examples/textured.rs"
+
+[features]
+default = []
+# Enable texture rendering using vendored GPUI with Application::textured()
+# This requires Linux/FreeBSD and the vendored GPUI
+vendored-gpui = []
+
 [dependencies]
 gpui.workspace = true
 gpui-component.workspace = true
@@ -20,6 +30,7 @@ gpui-component.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 smallvec = "1"
+image = "0.25"
 
 [dev-dependencies]
 gpui-component-assets.workspace = true
