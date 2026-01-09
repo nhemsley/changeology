@@ -34,3 +34,4 @@ image = "0.25"
 
 [dev-dependencies]
 gpui-component-assets.workspace = true
+rand = "0.8"

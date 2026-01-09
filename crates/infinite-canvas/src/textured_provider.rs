@@ -325,7 +325,7 @@ fn render_element_to_texture(
 fn render_element_to_texture_impl(
     element: AnyElement,
 ) -> Result<(Arc<RenderImage>, Size<Pixels>), String> {
-    use gpui::{Application, AvailableSpace, Context, WindowBounds, WindowOptions};
+    use gpui::{prelude::*, Application, WindowBounds, WindowOptions};
 
     // Store element in a way that can be accessed by closures
     let element_cell: Rc<RefCell<Option<AnyElement>>> = Rc::new(RefCell::new(Some(element)));
@@ -335,115 +335,84 @@ fn render_element_to_texture_impl(
     let element_for_app = element_cell.clone();
     let result_for_app = result.clone();
 
+    // Use a fixed size for now - we can't easily measure across App boundaries
+    // due to arena lifecycle issues. Elements will be rendered at this size.
+    let render_width = 800.0_f32;
+    let render_height = 600.0_f32;
+    let render_size = size(px(render_width), px(render_height));
+
     let app = Application::textured();
 
     app.run(move |cx: &mut App| {
         let element_cell = element_for_app.clone();
         let result_cell = result_for_app.clone();
 
-        // Phase 1: Measure
-        let measure_bounds = Bounds::new(point(px(0.0), px(0.0)), size(px(4000.0), px(4000.0)));
+        let bounds = Bounds::centered(None, render_size, cx);
 
         let window_result = cx.open_window(
             WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(measure_bounds)),
+                window_bounds: Some(WindowBounds::Windowed(bounds)),
                 ..Default::default()
             },
-            |_, cx| cx.new(|_| MeasureRenderView::new(element_cell.clone())),
+            |_, cx| cx.new(|_| RenderView::new(element_cell.clone())),
         );
 
         match window_result {
             Ok(window) => {
                 let handle: gpui::AnyWindowHandle = window.into();
-                let element_for_render = element_cell.clone();
                 let result_for_spawn = result_cell.clone();
+                let width_copy = render_width;
+                let height_copy = render_height;
 
                 cx.spawn(async move |cx| {
-                    // Draw to trigger layout
-                    let _ = cx.update_window(handle, |_, window, cx| window.draw_and_present(cx));
+                    // Draw to render the content
+                    let draw_result =
+                        cx.update_window(handle, |_, window, cx| window.draw_and_present(cx));
 
-                    // Get measured size
-                    let measured_size = cx
-                        .update_window(handle, |root, _window, cx| {
-                            if let Ok(view) = root.downcast::<MeasureRenderView>() {
-                                view.read(cx).measured_size
-                            } else {
-                                None
-                            }
-                        })
-                        .ok()
-                        .flatten();
+                    match draw_result {
+                        Ok(true) => {
+                            // Read pixels
+                            let read_result =
+                                cx.update_window(handle, |_, window, _cx| window.read_pixels());
 
-                    // Close measure window
-                    let _ = cx.update_window(handle, |_, _, cx| cx.remove_window());
-
-                    let Some(measured_size) = measured_size else {
-                        *result_for_spawn.borrow_mut() =
-                            Some(Err("Failed to measure element".into()));
-                        let _ = cx.update(|cx| cx.quit());
-                        return;
-                    };
-
-                    // Phase 2: Render at measured size
-                    let render_bounds = Bounds::new(point(px(0.0), px(0.0)), measured_size);
-
-                    let render_result = cx.update(|cx| {
-                        cx.open_window(
-                            WindowOptions {
-                                window_bounds: Some(WindowBounds::Windowed(render_bounds)),
-                                ..Default::default()
-                            },
-                            |_, cx| cx.new(|_| RenderView::new(element_for_render.clone())),
-                        )
-                    });
-
-                    match render_result {
-                        Ok(Ok(window)) => {
-                            let render_handle: gpui::AnyWindowHandle = window.into();
-
-                            // Draw
-                            let draw_ok = cx
-                                .update_window(render_handle, |_, window, cx| {
-                                    window.draw_and_present(cx)
-                                })
-                                .unwrap_or(Ok(false))
-                                .unwrap_or(false);
-
-                            if draw_ok {
-                                // Read pixels
-                                if let Ok(Some(pixels)) = cx
-                                    .update_window(render_handle, |_, window, _| {
-                                        window.read_pixels()
-                                    })
-                                {
-                                    let width = measured_size.width.0 as u32;
-                                    let height = measured_size.height.0 as u32;
+                            match read_result {
+                                Ok(Some(pixels)) => {
+                                    let width = width_copy as u32;
+                                    let height = height_copy as u32;
 
                                     if let Some(image) =
                                         pixels_to_render_image(&pixels, width, height)
                                     {
-                                        *result_for_spawn.borrow_mut() =
-                                            Some(Ok((Arc::new(image), measured_size)));
+                                        *result_for_spawn.borrow_mut() = Some(Ok((
+                                            Arc::new(image),
+                                            size(px(width_copy), px(height_copy)),
+                                        )));
                                     } else {
                                         *result_for_spawn.borrow_mut() =
                                             Some(Err("Failed to convert pixels".into()));
                                     }
-                                } else {
-                                    *result_for_spawn.borrow_mut() =
-                                        Some(Err("Failed to read pixels".into()));
                                 }
-                            } else {
-                                *result_for_spawn.borrow_mut() = Some(Err("Draw failed".into()));
+                                Ok(None) => {
+                                    *result_for_spawn.borrow_mut() =
+                                        Some(Err("read_pixels returned None".into()));
+                                }
+                                Err(e) => {
+                                    *result_for_spawn.borrow_mut() =
+                                        Some(Err(format!("Failed to read pixels: {}", e)));
+                                }
                             }
-
-                            let _ = cx.update_window(render_handle, |_, _, cx| cx.remove_window());
                         }
-                        _ => {
+                        Ok(false) => {
                             *result_for_spawn.borrow_mut() =
-                                Some(Err("Failed to open render window".into()));
+                                Some(Err("Window not ready for drawing".into()));
+                        }
+                        Err(e) => {
+                            *result_for_spawn.borrow_mut() =
+                                Some(Err(format!("update_window failed: {}", e)));
                         }
                     }
 
+                    // Quit after we're done
                     let _ = cx.update(|cx| cx.quit());
                 })
                 .detach();
@@ -456,10 +425,11 @@ fn render_element_to_texture_impl(
     });
 
     // Extract result after app.run() completes
-    result
+    let final_result = result
         .borrow_mut()
         .take()
-        .unwrap_or(Err("No result returned".into()))
+        .unwrap_or(Err("No result returned".into()));
+    final_result
 }
 
 /// Convert BGRA pixels to RenderImage
@@ -483,44 +453,7 @@ fn pixels_to_render_image(pixels: &[u8], width: u32, height: u32) -> Option<Rend
     Some(RenderImage::new(smallvec![Frame::new(image)]))
 }
 
-/// View used for measuring element size
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
-struct MeasureRenderView {
-    element_cell: Rc<RefCell<Option<AnyElement>>>,
-    measured_size: Option<Size<Pixels>>,
-}
-
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
-impl MeasureRenderView {
-    fn new(element_cell: Rc<RefCell<Option<AnyElement>>>) -> Self {
-        Self {
-            element_cell,
-            measured_size: None,
-        }
-    }
-}
-
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
-impl gpui::Render for MeasureRenderView {
-    fn render(&mut self, window: &mut Window, cx: &mut gpui::Context<Self>) -> impl IntoElement {
-        use gpui::AvailableSpace;
-
-        // Take the element (we only measure once)
-        if let Some(mut element) = self.element_cell.borrow_mut().take() {
-            // Measure using MinContent for both dimensions
-            let measured = element.layout_as_root(AvailableSpace::min_size(), window, cx);
-            self.measured_size = Some(measured);
-
-            // Put it back for the render phase
-            *self.element_cell.borrow_mut() = Some(element);
-        }
-
-        // Return empty - we just needed to measure
-        div().size_full()
-    }
-}
-
-/// View used for final rendering
+/// View used for rendering
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 struct RenderView {
     element_cell: Rc<RefCell<Option<AnyElement>>>,
@@ -535,7 +468,11 @@ impl RenderView {
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
 impl gpui::Render for RenderView {
-    fn render(&mut self, _window: &mut Window, _cx: &mut gpui::Context<Self>) -> impl IntoElement {
+    fn render(
+        &mut self,
+        _window: &mut Window,
+        _cx: &mut gpui::Context<Self>,
+    ) -> impl gpui::IntoElement {
         // Take and render the element
         if let Some(element) = self.element_cell.borrow_mut().take() {
             element
@@ -645,7 +582,7 @@ mod tests {
     }
 
     #[test]
-    fn test_provider_tick_without_vendored_gpui() {
+    fn test_provider_tick_renders() {
         let mut provider = TexturedCanvasItemsProvider::new();
 
         provider.add_item("test-1", || div().into_any_element());
