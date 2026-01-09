@@ -2064,6 +2064,7 @@ dependencies = [
  "gpui",
  "gpui-component",
  "gpui-component-assets",
+ "infinite-canvas",
  "rand 0.8.5",
 ]
 

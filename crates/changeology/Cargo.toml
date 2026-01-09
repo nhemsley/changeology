@@ -12,6 +12,7 @@ path = "src/changeology.rs"
 # Workspace crates
 buffer-diff = { path = "../diff" }
 git = { path = "../git" }
+infinite-canvas = { path = "../infinite-canvas" }
 
 # GPUI (from workspace)
 gpui.workspace = true

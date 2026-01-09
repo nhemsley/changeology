@@ -1,4 +1,5 @@
 mod app;
+mod diff_canvas;
 mod menu;
 mod panels;
 

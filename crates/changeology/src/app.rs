@@ -1,9 +1,7 @@
 use gpui::*;
-use gpui_component::scroll::ScrollableElement;
 
 use gpui_component::{
     button::{Button, ButtonVariants},
-    clipboard::Clipboard,
     h_flex,
     list::ListItem,
     menu::{DropdownMenu, PopupMenu},
@@ -13,25 +11,17 @@ use gpui_component::{
     v_flex, ActiveTheme, Icon, IconName, Root, Sizable, TitleBar,
 };
 
+use crate::diff_canvas::{DiffCanvasView, FileDiff};
 use crate::menu::*;
 use crate::panels::file_tree;
-use buffer_diff::{BufferDiff, DiffConfig, DiffLineType};
+use buffer_diff::DiffConfig;
 use git::{Commit, Repository};
-
-/// Diff data for a single file in a commit
-#[derive(Clone)]
-struct FileDiff {
-    path: String,
-    old_content: String,
-    new_content: String,
-    buffer_diff: BufferDiff,
-}
 
 /// Which panel is currently shown in the left sidebar
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
 pub enum ActivePanel {
-    History,
     #[default]
+    History,
     FileTree,
 }
 
@@ -64,6 +54,9 @@ pub struct ChangeologyApp {
 
     /// Diffs for the selected commit
     commit_diffs: Vec<FileDiff>,
+
+    /// The diff canvas view for displaying diffs
+    diff_canvas: Entity<DiffCanvasView>,
 }
 
 impl ChangeologyApp {
@@ -77,6 +70,9 @@ impl ChangeologyApp {
         // Create tree state
         let file_tree_state = cx.new(|cx| TreeState::new(cx));
 
+        // Create the diff canvas view
+        let diff_canvas = cx.new(|cx| DiffCanvasView::new(window, cx));
+
         let mut app = Self {
             repository,
             cwd,
@@ -87,6 +83,7 @@ impl ChangeologyApp {
             commits: Vec::new(),
             selected_commit: None,
             commit_diffs: Vec::new(),
+            diff_canvas,
         };
 
         // Load initial data
@@ -113,11 +110,15 @@ impl ChangeologyApp {
         cx.notify();
     }
 
-    fn load_commit_diffs(&mut self, commit_index: usize, _cx: &mut Context<Self>) {
+    fn load_commit_diffs(&mut self, commit_index: usize, cx: &mut Context<Self>) {
         self.commit_diffs.clear();
+
+        let mut commit_info: Option<(String, String)> = None;
 
         if let Some(repo) = &self.repository {
             if let Some(commit) = self.commits.get(commit_index) {
+                commit_info = Some((commit.short_id.clone(), commit.message.clone()));
+
                 // Get list of files changed in this commit
                 if let Ok(files) = repo.get_commit_files(&commit.id) {
                     for file_path in files {
@@ -151,6 +152,12 @@ impl ChangeologyApp {
                 }
             }
         }
+
+        // Update the canvas view with the new diffs
+        let diffs = self.commit_diffs.clone();
+        self.diff_canvas.update(cx, |canvas, cx| {
+            canvas.set_diffs(diffs, commit_info, cx);
+        });
     }
 
     fn render_title_bar(&self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -381,231 +388,14 @@ impl ChangeologyApp {
     fn render_content_area(
         &self,
         _window: &mut Window,
-        cx: &mut Context<Self>,
+        _cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        if self.commit_diffs.is_empty() {
-            return div()
-                .size_full()
-                .flex()
-                .items_center()
-                .justify_center()
-                .bg(cx.theme().background)
-                .text_color(cx.theme().muted_foreground)
-                .child(
-                    v_flex()
-                        .gap_2()
-                        .items_center()
-                        .child(
-                            Icon::new(IconName::File)
-                                .size(px(48.))
-                                .text_color(cx.theme().muted_foreground),
-                        )
-                        .child("Select a commit to view diffs")
-                        .child(
-                            div()
-                                .text_xs()
-                                .text_color(cx.theme().muted_foreground)
-                                .child("Click on a commit in the history panel"),
-                        ),
-                )
-                .into_any_element();
-        }
-
-        // Render all diffs vertically in a scrollable container
+        // Use the diff canvas view for displaying diffs
+        // Wrap in a size_full div to ensure proper sizing
         div()
             .size_full()
-            .bg(cx.theme().background)
-            .overflow_y_scrollbar()
-            .child(
-                v_flex().w_full().p_4().gap_4().children(
-                    self.commit_diffs
-                        .iter()
-                        .map(|file_diff| self.render_file_diff(file_diff, cx)),
-                ),
-            )
-            .into_any_element()
+            .child(self.diff_canvas.clone())
     }
-
-    fn render_file_diff(&self, file_diff: &FileDiff, cx: &mut Context<Self>) -> impl IntoElement {
-        let file_path = file_diff.path.clone();
-        let commit_hash = self
-            .selected_commit
-            .and_then(|idx| self.commits.get(idx))
-            .map(|commit| commit.id.clone())
-            .unwrap_or_default();
-
-        let copy_value = format!("{} {}", commit_hash, file_path);
-        let clipboard_id = SharedString::from(format!("copy-file-{}", file_path));
-
-        v_flex()
-            .w_full()
-            .border_1()
-            .border_color(cx.theme().border)
-            .rounded(px(8.))
-            .overflow_hidden()
-            .child(
-                // File header
-                div()
-                    .w_full()
-                    .px_3()
-                    .py_2()
-                    .bg(cx.theme().muted)
-                    .border_b_1()
-                    .border_color(cx.theme().border)
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .items_center()
-                            .justify_between()
-                            .child(
-                                h_flex()
-                                    .gap_2()
-                                    .items_center()
-                                    .child(Icon::new(IconName::File).small())
-                                    .child(
-                                        div()
-                                            .text_sm()
-                                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                                            .child(file_diff.path.clone()),
-                                    ),
-                            )
-                            .child(Clipboard::new(clipboard_id).value(copy_value)),
-                    ),
-            )
-            .child(
-                // Diff content
-                div()
-                    .w_full()
-                    .bg(cx.theme().background)
-                    .child(self.render_hunks(file_diff, cx)),
-            )
-    }
-
-    fn render_hunks(&self, file_diff: &FileDiff, cx: &mut Context<Self>) -> impl IntoElement {
-        let hunks = file_diff.buffer_diff.hunks();
-        let old_lines: Vec<&str> = file_diff.old_content.lines().collect();
-        let new_lines: Vec<&str> = file_diff.new_content.lines().collect();
-
-        v_flex().w_full().children(hunks.iter().flat_map(|hunk| {
-            let mut lines = Vec::new();
-
-            // Use line_types for all hunks to properly handle context lines
-            // Track separate offsets for old and new lines
-            let mut old_offset = 0;
-            let mut new_offset = 0;
-
-            for &line_type in hunk.line_types.iter() {
-                match line_type {
-                    DiffLineType::OldOnly => {
-                        // Line was removed
-                        let old_line_idx = hunk.old_range.start + old_offset;
-                        if let Some(line_content) = old_lines.get(old_line_idx) {
-                            lines.push(self.render_diff_line(
-                                Some(old_line_idx + 1),
-                                None,
-                                line_content,
-                                DiffLineKind::Removed,
-                                cx,
-                            ));
-                        }
-                        old_offset += 1;
-                    }
-                    DiffLineType::NewOnly => {
-                        // Line was added
-                        let new_line_idx = hunk.new_range.start + new_offset;
-                        if let Some(line_content) = new_lines.get(new_line_idx) {
-                            lines.push(self.render_diff_line(
-                                None,
-                                Some(new_line_idx + 1),
-                                line_content,
-                                DiffLineKind::Added,
-                                cx,
-                            ));
-                        }
-                        new_offset += 1;
-                    }
-                    DiffLineType::Both => {
-                        // Line exists in both (context or unchanged)
-                        let old_line_idx = hunk.old_range.start + old_offset;
-                        let new_line_idx = hunk.new_range.start + new_offset;
-                        if let Some(line_content) = old_lines.get(old_line_idx) {
-                            lines.push(self.render_diff_line(
-                                Some(old_line_idx + 1),
-                                Some(new_line_idx + 1),
-                                line_content,
-                                DiffLineKind::Context,
-                                cx,
-                            ));
-                        }
-                        old_offset += 1;
-                        new_offset += 1;
-                    }
-                }
-            }
-
-            lines
-        }))
-    }
-
-    fn render_diff_line(
-        &self,
-        old_line_num: Option<usize>,
-        new_line_num: Option<usize>,
-        content: &str,
-        kind: DiffLineKind,
-        cx: &mut Context<Self>,
-    ) -> impl IntoElement {
-        let (bg_color, sign, text_color) = match kind {
-            DiffLineKind::Added => (cx.theme().green.opacity(0.1), "+", cx.theme().green),
-            DiffLineKind::Removed => (cx.theme().red.opacity(0.1), "-", cx.theme().red),
-            DiffLineKind::Context => (cx.theme().background, " ", cx.theme().foreground),
-        };
-
-        h_flex()
-            .w_full()
-            .bg(bg_color)
-            .px_2()
-            .py_0p5()
-            .child(
-                div()
-                    .w(px(40.))
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(format!(
-                        "{:>4}",
-                        old_line_num
-                            .map(|n| n.to_string())
-                            .unwrap_or_else(|| " ".to_string())
-                    )),
-            )
-            .child(
-                div()
-                    .w(px(40.))
-                    .text_xs()
-                    .text_color(cx.theme().muted_foreground)
-                    .child(format!(
-                        "{:>4}",
-                        new_line_num
-                            .map(|n| n.to_string())
-                            .unwrap_or_else(|| " ".to_string())
-                    )),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .text_xs()
-                    .font_family("monospace")
-                    .text_color(text_color)
-                    .child(format!("{} {}", sign, content)),
-            )
-    }
-}
-
-#[derive(Clone, Copy)]
-enum DiffLineKind {
-    Added,
-    Removed,
-    Context,
 }
 
 impl Render for ChangeologyApp {

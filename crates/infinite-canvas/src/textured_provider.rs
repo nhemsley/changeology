@@ -774,6 +774,9 @@ fn pixels_to_render_image(pixels: &[u8], width: u32, height: u32) -> Option<Rend
 // ============================================================================
 
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+/// Maximum texture height to prevent excessive memory usage
+const MAX_TEXTURE_HEIGHT: f32 = 2048.0;
+
 fn run_textured_renderer(
     sizing: ItemSizing,
     factory: Arc<dyn Fn() -> AnyElement + Send + Sync>,
@@ -782,7 +785,16 @@ fn run_textured_renderer(
     let app = Application::textured();
 
     app.run(move |cx: &mut App| {
-        let initial_size = sizing.initial_size();
+        // For FixedWidth sizing, use a large initial height to allow content to expand
+        let initial_size = match &sizing {
+            ItemSizing::FixedWidth { width, estimated_height } => {
+                // Use 1.5x estimated height to allow some expansion, capped at MAX_TEXTURE_HEIGHT
+                let est_height: f32 = (*estimated_height).into();
+                let height = (est_height * 1.5).min(MAX_TEXTURE_HEIGHT);
+                size(*width, px(height))
+            }
+            _ => sizing.initial_size(),
+        };
         let bounds = Bounds::centered(None, initial_size, cx);
 
         let window_result = cx.open_window(
@@ -841,30 +853,9 @@ impl Render for BackgroundRenderer {
 
         match self.phase {
             RenderPhase::FirstRender => {
-                // For FixedWidth mode, we may need to resize based on content
+                // For FixedWidth mode, the window is already sized large enough
+                // Just mark as did_resize to skip unnecessary resize logic
                 if self.sizing.needs_measurement() && !self.did_resize {
-                    let sizing = self.sizing.clone();
-
-                    window
-                        .spawn(cx, async move |cx| {
-                            // Let the first render complete
-                            Timer::after(Duration::from_millis(10)).await;
-
-                            let _ =
-                                cx.update_window(window_handle, |_, window: &mut Window, _cx| {
-                                    if let ItemSizing::FixedWidth { width, .. } = sizing {
-                                        let current_bounds = window.bounds();
-                                        let new_size = Size {
-                                            width,
-                                            height: current_bounds.size.height,
-                                        };
-                                        window.resize(new_size);
-                                    }
-                                    window.refresh();
-                                });
-                        })
-                        .detach();
-
                     self.did_resize = true;
                 }
 
@@ -917,13 +908,26 @@ impl Render for BackgroundRenderer {
 
         // Render the actual content
         let element = (self.factory)();
-        let size = self.sizing.initial_size();
 
-        div()
-            .w(size.width)
-            .h(size.height)
-            .overflow_hidden()
-            .child(element)
+        // For FixedWidth sizing, only constrain width - let height be determined by content
+        // The window is sized large enough to accommodate the content
+        match &self.sizing {
+            ItemSizing::FixedWidth { width, .. } => {
+                div()
+                    .w(*width)
+                    .flex()
+                    .flex_col()
+                    .child(element)
+            }
+            _ => {
+                let size = self.sizing.initial_size();
+                div()
+                    .w(size.width)
+                    .h(size.height)
+                    .overflow_hidden()
+                    .child(element)
+            }
+        }
     }
 }
 
