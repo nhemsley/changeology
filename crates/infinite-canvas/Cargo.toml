@@ -25,13 +25,12 @@ vendored-gpui = []
 
 [dependencies]
 gpui.workspace = true
-gpui-component.workspace = true
 
 anyhow.workspace = true
 serde.workspace = true
 smallvec = "1"
 image = "0.25"
+flume = "0.11"
 
 [dev-dependencies]
-gpui-component-assets.workspace = true
 rand = "0.8"

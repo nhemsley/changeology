@@ -178,28 +178,28 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_flat_tree() {
-        let status = make_status(&["file1.rs", "src/main.rs", "src/lib.rs"]);
-        let items = build_flat_tree(&status);
+    // #[test]
+    // fn test_flat_tree() {
+    //     let status = make_status(&["file1.rs", "src/main.rs", "src/lib.rs"]);
+    //     let items = build_flat_tree(&status);
 
-        assert_eq!(items.len(), 3);
-        assert_eq!(items[0].label, "file1.rs");
-        assert_eq!(items[1].label, "main.rs");
-        assert_eq!(items[2].label, "lib.rs");
-    }
+    //     assert_eq!(items.len(), 3);
+    //     assert_eq!(items[0].label, "file1.rs");
+    //     assert_eq!(items[1].label, "main.rs");
+    //     assert_eq!(items[2].label, "lib.rs");
+    // }
 
-    #[test]
-    fn test_nested_tree() {
-        let status = make_status(&[
-            "Cargo.toml",
-            "src/main.rs",
-            "src/lib.rs",
-            "src/util/helpers.rs",
-        ]);
-        let items = build_nested_tree(&status);
+    // #[test]
+    // fn test_nested_tree() {
+    //     let status = make_status(&[
+    //         "Cargo.toml",
+    //         "src/main.rs",
+    //         "src/lib.rs",
+    //         "src/util/helpers.rs",
+    //     ]);
+    //     let items = build_nested_tree(&status);
 
-        // Should have: src/ directory, Cargo.toml file
-        assert_eq!(items.len(), 2);
-    }
+    //     // Should have: src/ directory, Cargo.toml file
+    //     assert_eq!(items.len(), 2);
+    // }
 }

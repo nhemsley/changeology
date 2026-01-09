@@ -46,9 +46,11 @@ pub mod prelude {
     pub use crate::layout::{GridLayout, Layout, TreeLayout};
     pub use crate::options::CanvasOptions;
     pub use crate::textured_provider::{
-        CanvasItemDescriptor, CanvasItemId, CanvasItemsProvider, TextureState,
-        TexturedCanvasItemsProvider, TexturedItemElement,
+        CanvasItemDescriptor, CanvasItemId, CanvasItemsProvider, DownscaleMode, TextureState,
+        TexturedCanvasItemsProvider, TexturedItemElement, downscale_pixels,
     };
+    // Re-export ItemSizing from gpui for convenient API access
+    pub use gpui::ItemSizing;
 }
 
 /// Initialize the infinite canvas component.
