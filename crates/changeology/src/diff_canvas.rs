@@ -35,6 +35,8 @@ pub struct DiffCanvasView {
     commit_info: Option<(String, String)>, // (short_hash, message)
     /// Canvas options
     options: CanvasOptions,
+    /// Flag to indicate that items need to be synced to the provider
+    needs_sync: bool,
 }
 
 impl DiffCanvasView {
@@ -59,37 +61,49 @@ impl DiffCanvasView {
             diffs: Vec::new(),
             commit_info: None,
             options,
+            needs_sync: false,
         }
     }
 
-    /// Set the diffs to display on the canvas
+    /// Set the diffs to display on the canvas.
+    /// This stores the diffs and marks items for sync during next render.
     pub fn set_diffs(
         &mut self,
         diffs: Vec<FileDiff>,
         commit_info: Option<(String, String)>,
         _cx: &mut Context<Self>,
     ) {
-        self.diffs = diffs.clone();
+        self.diffs = diffs;
         self.commit_info = commit_info;
+        self.needs_sync = true;
+
+        // Reset camera to show content
+        self.camera = Camera::with_offset_and_zoom(point(px(50.0), px(50.0)), 1.0);
+    }
+
+    /// Sync the provider items with the current diffs.
+    /// This is called during render when we have window access.
+    fn sync_items_if_needed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.needs_sync {
+            return;
+        }
+        self.needs_sync = false;
 
         // Clear existing items
-        let item_ids: Vec<String> = self.provider.item_ids().map(|s| s.to_string()).collect();
-        for id in item_ids {
-            self.provider.remove_item(&id);
-        }
+        self.provider.clear();
 
         // Layout diffs in a grid pattern
         let card_width = 500.0;
         let card_spacing = 30.0;
         let cards_per_row = 3;
 
-        for (i, diff) in diffs.into_iter().enumerate() {
+        for (i, diff) in self.diffs.iter().enumerate() {
             let row = i / cards_per_row;
             let col = i % cards_per_row;
 
             let x = col as f32 * (card_width + card_spacing);
             // Estimate height based on diff size
-            let estimated_height = Self::estimate_diff_height(&diff);
+            let estimated_height = Self::estimate_diff_height(diff);
             let y = if row == 0 {
                 0.0
             } else {
@@ -99,14 +113,14 @@ impl DiffCanvasView {
             };
 
             let diff_clone = diff.clone();
-            self.provider
-                .add_item_at(format!("diff-{}", i), point(px(x), px(y)), move || {
-                    Self::render_diff_card(&diff_clone)
-                });
+            self.provider.add_item(
+                format!("diff-{}", i),
+                point(px(x), px(y)),
+                window,
+                cx,
+                move || Self::render_diff_card(&diff_clone),
+            );
         }
-
-        // Reset camera to show content
-        self.camera = Camera::with_offset_and_zoom(point(px(50.0), px(50.0)), 1.0);
     }
 
     /// Estimate the height of a diff card based on content
@@ -327,15 +341,8 @@ impl Render for DiffCanvasView {
                 .into_any_element();
         }
 
-        // Process render queue (only when we have content)
-        if self.provider.tick() {
-            cx.notify();
-        }
-
-        // Keep polling if there are active/pending renders
-        if self.provider.active_count() > 0 || self.provider.pending_count() > 0 {
-            cx.notify();
-        }
+        // Sync items if diffs have changed (now we have window access)
+        self.sync_items_if_needed(window, cx);
 
         let viewport = window.viewport_size();
         let items = self.provider.items();
@@ -345,12 +352,6 @@ impl Render for DiffCanvasView {
         let mut rendered_items: Vec<AnyElement> = Vec::new();
 
         for item in &items {
-            // Request texture if not already requested
-            if let TextureState::NotRequested = self.provider.texture_state(&item.id) {
-                self.provider.request_texture(&item.id);
-                cx.notify();
-            }
-
             // Transform bounds by camera
             let screen_bounds = camera.canvas_to_screen_bounds(item.bounds);
 
@@ -360,67 +361,11 @@ impl Render for DiffCanvasView {
                 continue;
             }
 
-            // Create element based on texture state
-            let content: AnyElement = match self.provider.texture_state(&item.id) {
-                TextureState::Ready { ref image, .. } => img(image.clone())
-                    .size_full()
-                    .object_fit(ObjectFit::Fill)
-                    .into_any_element(),
-                TextureState::Rendering => div()
-                    .size_full()
-                    .bg(rgb(0x2d2d2d))
-                    .rounded_lg()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(rgb(0x8b949e))
-                            .child("Rendering..."),
-                    )
-                    .into_any_element(),
-                TextureState::NotRequested => div()
-                    .size_full()
-                    .bg(rgb(0x2d2d2d))
-                    .rounded_lg()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(rgb(0x6e7681))
-                            .child("Loading..."),
-                    )
-                    .into_any_element(),
-                TextureState::Failed(ref msg) => div()
-                    .size_full()
-                    .bg(rgb(0x3d1a1a))
-                    .rounded_lg()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(rgb(0xf85149))
-                            .child(format!("Error: {}", msg)),
-                    )
-                    .into_any_element(),
-            };
-
-            // Position the item
-            rendered_items.push(
-                div()
-                    .absolute()
-                    .left(screen_bounds.origin.x)
-                    .top(screen_bounds.origin.y)
-                    .w(screen_bounds.size.width)
-                    .h(screen_bounds.size.height)
-                    .child(content)
-                    .into_any_element(),
-            );
+            // Render the item at its transformed position (with proper zoom scaling)
+            // The new API handles texture state internally via TexturedView
+            if let Some(element) = self.provider.render_item_at(&item.id, screen_bounds, cx) {
+                rendered_items.push(element);
+            }
         }
 
         // Build the canvas with controls
