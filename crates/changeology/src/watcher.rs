@@ -3,7 +3,7 @@
 //! Watches the repository directory and notifies when files change.
 
 use log::{debug, info, trace, warn};
-use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::Path;
 use std::sync::mpsc::{channel, Receiver};
 use std::time::Duration;
@@ -68,7 +68,17 @@ impl RepoWatcher {
         while let Ok(event) = self.rx.try_recv() {
             match event {
                 Ok(event) => {
+                    // Filter out Access events - we only care about actual changes
+                    if matches!(event.kind, EventKind::Access(_)) {
+                        trace!("Ignoring access event: {:?}", event);
+                        continue;
+                    }
+
                     trace!("Received fs event: {:?}", event);
+                    // Log the paths that triggered the event
+                    for path in &event.paths {
+                        debug!("File event {:?}: {}", event.kind, path.display());
+                    }
                     let kind = Self::classify_event(&event);
                     debug!("Classified event as: {:?}", kind);
                     result = Some(Self::merge_kinds(result, kind));
