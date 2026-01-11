@@ -6,7 +6,7 @@ use gpui_component::{
     list::ListItem,
     menu::{DropdownMenu, PopupMenu},
     resizable::{h_resizable, resizable_panel},
-    tab::{Tab, TabBar},
+
     tree::{tree, TreeState},
     v_flex, ActiveTheme, Icon, IconName, Root, Sizable, TitleBar,
 };
@@ -16,14 +16,6 @@ use crate::menu::*;
 use crate::panels::file_tree;
 use buffer_diff::DiffConfig;
 use git::{Commit, Repository};
-
-/// Which panel is currently shown in the left sidebar
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
-pub enum ActivePanel {
-    #[default]
-    History,
-    FileTree,
-}
 
 pub struct ChangeologyApp {
     /// The git repository (if opened)
@@ -36,8 +28,17 @@ pub struct ChangeologyApp {
     #[allow(dead_code)]
     sidebar_collapsed: bool,
 
-    /// Which panel is active
-    active_panel: ActivePanel,
+    /// Dirty files (unstaged changes)
+    dirty_files: Vec<git::StatusEntry>,
+
+    /// Staged files (ready to commit)
+    staged_files: Vec<git::StatusEntry>,
+
+    /// Selected dirty file index
+    selected_dirty_file: Option<usize>,
+
+    /// Selected staged file index
+    selected_staged_file: Option<usize>,
 
     /// File tree state
     file_tree_state: Entity<TreeState>,
@@ -77,7 +78,10 @@ impl ChangeologyApp {
             repository,
             cwd,
             sidebar_collapsed: false,
-            active_panel: ActivePanel::FileTree,
+            dirty_files: Vec::new(),
+            staged_files: Vec::new(),
+            selected_dirty_file: None,
+            selected_staged_file: None,
             file_tree_state,
             selected_file: None,
             commits: Vec::new(),
@@ -94,7 +98,17 @@ impl ChangeologyApp {
 
     pub fn refresh(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
         if let Some(repo) = &self.repository {
-            // Load file status
+            // Load dirty (unstaged) files
+            if let Ok(dirty) = repo.unstaged_changes() {
+                self.dirty_files = dirty;
+            }
+
+            // Load staged files
+            if let Ok(staged) = repo.staged_changes() {
+                self.staged_files = staged;
+            }
+
+            // Load file status for file tree
             if let Ok(status) = repo.status() {
                 let items = file_tree::build_nested_tree(&status);
                 self.file_tree_state.update(cx, |state, cx| {
@@ -187,9 +201,6 @@ impl ChangeologyApp {
                             .dropdown_menu(
                                 |menu: PopupMenu, _: &mut Window, _: &mut Context<PopupMenu>| {
                                     menu.menu("Toggle Sidebar", Box::new(ToggleSidebar))
-                                        .separator()
-                                        .menu("History", Box::new(ShowHistory))
-                                        .menu("File Tree", Box::new(ShowFileTree))
                                 },
                             ),
                     ),
@@ -211,33 +222,173 @@ impl ChangeologyApp {
             )
     }
 
-    fn render_panel_tabs(&self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let selected = match self.active_panel {
-            ActivePanel::History => 0,
-            ActivePanel::FileTree => 1,
-        };
-
-        h_flex()
-            .w_full()
-            .px_2()
-            .py_1()
-            .gap_1()
-            .border_b_1()
-            .border_color(cx.theme().border)
+    fn render_dirty_files(&self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        v_flex()
+            .size_full()
             .child(
-                TabBar::new("panel-tabs")
-                    .segmented()
-                    .small()
-                    .selected_index(selected)
-                    .child(Tab::new().icon(IconName::Inbox)) // History - using Inbox icon
-                    .child(Tab::new().icon(IconName::Folder)) // Files
-                    .on_click(cx.listener(|this, index: &usize, _, cx| {
-                        this.active_panel = match index {
-                            0 => ActivePanel::History,
-                            _ => ActivePanel::FileTree,
-                        };
-                        cx.notify();
-                    })),
+                // Header
+                div()
+                    .px_2()
+                    .py_1()
+                    .border_b_1()
+                    .border_color(cx.theme().border)
+                    .child(
+                        h_flex()
+                            .justify_between()
+                            .items_center()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child("CHANGES")
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(format!("{}", self.dirty_files.len()))
+                            )
+                    )
+            )
+            .child(
+                // Content
+                div()
+                    .flex_1()
+                    .overflow_hidden()
+                    .child(
+                        v_flex()
+                            .w_full()
+                            .children(
+                                if self.dirty_files.is_empty() {
+                                    vec![
+                                        div()
+                                            .p_4()
+                                            .text_xs()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child("No changes")
+                                            .into_any_element()
+                                    ]
+                                } else {
+                                    self.dirty_files.iter().enumerate().map(|(i, entry)| {
+                                        let is_selected = self.selected_dirty_file == Some(i);
+                                        let status_icon = crate::panels::file_tree::status_indicator(entry.kind);
+                                        let status_color = crate::panels::file_tree::status_color(entry.kind, cx);
+
+                                        ListItem::new(format!("dirty-{}", i))
+                                            .selected(is_selected)
+                                            .py(px(2.))
+                                            .on_click(cx.listener(move |this, _: &gpui::ClickEvent, _window, cx| {
+                                                this.selected_dirty_file = Some(i);
+                                                cx.notify();
+                                            }))
+                                            .child(
+                                                h_flex()
+                                                    .gap_2()
+                                                    .items_center()
+                                                    .child(
+                                                        div()
+                                                            .text_xs()
+                                                            .font_weight(gpui::FontWeight::BOLD)
+                                                            .text_color(status_color)
+                                                            .child(status_icon)
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .text_sm()
+                                                            .child(entry.path.clone())
+                                                    )
+                                            )
+                                            .into_any_element()
+                                    }).collect()
+                                }
+                            )
+                    )
+            )
+    }
+
+    fn render_staging_area(&self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        v_flex()
+            .size_full()
+            .child(
+                // Header
+                div()
+                    .px_2()
+                    .py_1()
+                    .border_b_1()
+                    .border_color(cx.theme().border)
+                    .child(
+                        h_flex()
+                            .justify_between()
+                            .items_center()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child("STAGED")
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(format!("{}", self.staged_files.len()))
+                            )
+                    )
+            )
+            .child(
+                // Content
+                div()
+                    .flex_1()
+                    .overflow_hidden()
+                    .child(
+                        v_flex()
+                            .w_full()
+                            .children(
+                                if self.staged_files.is_empty() {
+                                    vec![
+                                        div()
+                                            .p_4()
+                                            .text_xs()
+                                            .text_color(cx.theme().muted_foreground)
+                                            .child("No staged files")
+                                            .into_any_element()
+                                    ]
+                                } else {
+                                    self.staged_files.iter().enumerate().map(|(i, entry)| {
+                                        let is_selected = self.selected_staged_file == Some(i);
+                                        let status_icon = crate::panels::file_tree::status_indicator(entry.kind);
+                                        let status_color = crate::panels::file_tree::status_color(entry.kind, cx);
+
+                                        ListItem::new(format!("staged-{}", i))
+                                            .selected(is_selected)
+                                            .py(px(2.))
+                                            .on_click(cx.listener(move |this, _: &gpui::ClickEvent, _window, cx| {
+                                                this.selected_staged_file = Some(i);
+                                                cx.notify();
+                                            }))
+                                            .child(
+                                                h_flex()
+                                                    .gap_2()
+                                                    .items_center()
+                                                    .child(
+                                                        div()
+                                                            .text_xs()
+                                                            .font_weight(gpui::FontWeight::BOLD)
+                                                            .text_color(status_color)
+                                                            .child(status_icon)
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .text_sm()
+                                                            .child(entry.path.clone())
+                                                    )
+                                            )
+                                            .into_any_element()
+                                    }).collect()
+                                }
+                            )
+                    )
             )
     }
 
@@ -282,86 +433,109 @@ impl ChangeologyApp {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
-        if self.commits.is_empty() {
-            return v_flex()
-                .size_full()
-                .p_4()
-                .items_center()
-                .justify_center()
-                .text_color(cx.theme().muted_foreground)
-                .child(
-                    Icon::new(IconName::Inbox)
-                        .size(px(32.))
-                        .text_color(cx.theme().muted_foreground),
-                )
-                .child("No commits found")
-                .child(
-                    div()
-                        .text_xs()
-                        .mt_2()
-                        .text_color(cx.theme().muted_foreground)
-                        .child("Initialize a repository or make some commits"),
-                )
-                .into_any_element();
-        }
-
         v_flex()
             .size_full()
             .child(
+                // Header
+                div()
+                    .px_2()
+                    .py_1()
+                    .border_b_1()
+                    .border_color(cx.theme().border)
+                    .child(
+                        h_flex()
+                            .justify_between()
+                            .items_center()
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .font_weight(gpui::FontWeight::SEMIBOLD)
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child("HISTORY")
+                            )
+                            .child(
+                                div()
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(format!("{}", self.commits.len()))
+                            )
+                    )
+            )
+            .child(
+                // Content
                 div()
                     .flex_1()
                     .overflow_hidden()
                     .child(
-                        v_flex()
-                            .w_full()
-                            .children(self.commits.iter().enumerate().map(|(i, commit)| {
-                                let is_selected = self.selected_commit == Some(i);
+                        if self.commits.is_empty() {
+                            v_flex()
+                                .size_full()
+                                .p_4()
+                                .items_center()
+                                .justify_center()
+                                .text_color(cx.theme().muted_foreground)
+                                .child(
+                                    Icon::new(IconName::Inbox)
+                                        .size(px(24.))
+                                        .text_color(cx.theme().muted_foreground),
+                                )
+                                .child(
+                                    div()
+                                        .text_xs()
+                                        .mt_2()
+                                        .child("No commits")
+                                )
+                                .into_any_element()
+                        } else {
+                            v_flex()
+                                .w_full()
+                                .children(self.commits.iter().enumerate().map(|(i, commit)| {
+                                    let is_selected = self.selected_commit == Some(i);
 
-                                ListItem::new(i)
-                                    .selected(is_selected)
-                                    .on_click(cx.listener(
-                                        move |this, _: &gpui::ClickEvent, _window, cx| {
-                                            this.selected_commit = Some(i);
-                                            this.load_commit_diffs(i, cx);
-                                            cx.notify();
-                                        },
-                                    ))
-                                    .child(
-                                        v_flex()
-                                            .w_full()
-                                            .gap_1()
-                                            .child(
-                                                h_flex()
-                                                    .w_full()
-                                                    .justify_between()
-                                                    .child(
-                                                        div()
-                                                            .text_sm()
-                                                            .font_weight(gpui::FontWeight::SEMIBOLD)
-                                                            .child(commit.message.clone()),
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .text_xs()
-                                                            .text_color(cx.theme().muted_foreground)
-                                                            .child(commit.short_id.clone()),
-                                                    ),
-                                            )
-                                            .child(
-                                                div()
-                                                    .text_xs()
-                                                    .text_color(cx.theme().muted_foreground)
-                                                    .child(format!(
-                                                        "{} • {}",
-                                                        commit.author_name,
-                                                        format_timestamp(commit.time)
-                                                    )),
-                                            ),
-                                    )
-                            })),
-                    ),
+                                    ListItem::new(format!("commit-{}", i))
+                                        .selected(is_selected)
+                                        .py(px(2.))
+                                        .on_click(cx.listener(
+                                            move |this, _: &gpui::ClickEvent, _window, cx| {
+                                                this.selected_commit = Some(i);
+                                                this.load_commit_diffs(i, cx);
+                                                cx.notify();
+                                            },
+                                        ))
+                                        .child(
+                                            v_flex()
+                                                .w_full()
+                                                .gap_1()
+                                                .child(
+                                                    h_flex()
+                                                        .w_full()
+                                                        .justify_between()
+                                                        .child(
+                                                            div()
+                                                                .text_sm()
+                                                                .max_w(px(180.))
+                                                                .overflow_hidden()
+                                                                .child(commit.message.lines().next().unwrap_or(&commit.message).to_string()),
+                                                        )
+                                                        .child(
+                                                            div()
+                                                                .text_xs()
+                                                                .text_color(cx.theme().muted_foreground)
+                                                                .child(commit.short_id.clone()),
+                                                        ),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .text_xs()
+                                                        .text_color(cx.theme().muted_foreground)
+                                                        .child(format_timestamp(commit.time)),
+                                                ),
+                                        )
+                                }))
+                                .into_any_element()
+                        }
+                    )
             )
-            .into_any_element()
     }
 
     fn render_sidebar(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
@@ -369,19 +543,27 @@ impl ChangeologyApp {
             .size_full()
             .bg(cx.theme().sidebar)
             .text_color(cx.theme().sidebar_foreground)
-            .child(self.render_panel_tabs(window, cx))
             .child(
+                // Dirty files section - top 1/3
                 div()
                     .flex_1()
-                    .overflow_hidden()
-                    .child(match self.active_panel {
-                        ActivePanel::History => {
-                            self.render_history_panel(window, cx).into_any_element()
-                        }
-                        ActivePanel::FileTree => {
-                            self.render_file_tree(window, cx).into_any_element()
-                        }
-                    }),
+                    .border_b_1()
+                    .border_color(cx.theme().border)
+                    .child(self.render_dirty_files(window, cx))
+            )
+            .child(
+                // Staging section - middle 1/3
+                div()
+                    .flex_1()
+                    .border_b_1()
+                    .border_color(cx.theme().border)
+                    .child(self.render_staging_area(window, cx))
+            )
+            .child(
+                // History section - bottom 1/3
+                div()
+                    .flex_1()
+                    .child(self.render_history_panel(window, cx))
             )
     }
 

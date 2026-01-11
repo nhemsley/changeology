@@ -9,8 +9,6 @@ actions!(
         Refresh,
         Quit,
         ToggleSidebar,
-        ShowHistory,
-        ShowFileTree,
     ]
 );
 

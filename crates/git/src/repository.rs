@@ -80,6 +80,69 @@ impl Repository {
         Ok(StatusList { entries })
     }
 
+    /// Get unstaged (working tree) changes
+    pub fn unstaged_changes(&self) -> Result<Vec<StatusEntry>> {
+        let mut opts = git2::StatusOptions::new();
+        opts.include_untracked(true)
+            .recurse_untracked_dirs(true)
+            .include_ignored(false);
+
+        let status = self.inner.statuses(Some(&mut opts))?;
+
+        let mut entries = Vec::new();
+
+        for entry in status.iter() {
+            let path = entry.path().unwrap_or("").to_string();
+            let status = entry.status();
+
+            // Only include working tree changes (unstaged)
+            if status.is_wt_new()
+                || status.is_wt_modified()
+                || status.is_wt_deleted()
+                || status.is_wt_renamed()
+                || status.is_wt_typechange()
+            {
+                entries.push(StatusEntry {
+                    path,
+                    kind: StatusKind::from_git2_status(status),
+                });
+            }
+        }
+
+        Ok(entries)
+    }
+
+    /// Get staged (index) changes
+    pub fn staged_changes(&self) -> Result<Vec<StatusEntry>> {
+        let mut opts = git2::StatusOptions::new();
+        opts.include_untracked(false)
+            .include_ignored(false);
+
+        let status = self.inner.statuses(Some(&mut opts))?;
+
+        let mut entries = Vec::new();
+
+        for entry in status.iter() {
+            let path = entry.path().unwrap_or("").to_string();
+            let status = entry.status();
+
+            // Only include index changes (staged)
+            if status.is_index_new()
+                || status.is_index_modified()
+                || status.is_index_deleted()
+                || status.is_index_renamed()
+                || status.is_index_typechange()
+            {
+                entries.push(StatusEntry {
+                    path,
+                    kind: StatusKind::from_git2_status(status),
+                });
+            }
+        }
+
+        Ok(entries)
+    }
+
     /// Get the content of a file from the repository HEAD
     pub fn get_head_content(&self, path: &str) -> Result<Option<String>> {
         self.get_content_at_revision("HEAD", path)
