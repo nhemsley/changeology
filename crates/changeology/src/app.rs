@@ -258,7 +258,7 @@ impl ChangeologyApp {
             .child(
                 // Content
                 div()
-                    .flex_1()
+                    .flex_auto()
                     .overflow_hidden()
                     .child(v_flex().w_full().children(if self.dirty_files.is_empty() {
                         vec![div()
@@ -343,7 +343,7 @@ impl ChangeologyApp {
             .child(
                 // Content
                 div()
-                    .flex_1()
+                    .flex_auto()
                     .overflow_hidden()
                     .child(v_flex().w_full().children(if self.staged_files.is_empty() {
                         vec![div()
