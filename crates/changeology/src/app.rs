@@ -162,6 +162,12 @@ impl ChangeologyApp {
             DataSourceKind::StagedFiles => {
                 self.refresh_staged_files();
             }
+            DataSourceKind::Index => {
+                // Index changes affect both dirty and staged files
+                // (staging moves files from dirty to staged, unstaging does the reverse)
+                self.refresh_dirty_files(cx);
+                self.refresh_staged_files();
+            }
             DataSourceKind::History => {
                 self.refresh_history();
             }

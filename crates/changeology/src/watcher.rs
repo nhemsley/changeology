@@ -10,11 +10,14 @@ use std::time::Duration;
 
 /// Identifies different data sources in the application
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[allow(dead_code)]
 pub enum DataSourceKind {
     /// Unstaged/dirty files in the working directory
     DirtyFiles,
     /// Staged files (git index)
     StagedFiles,
+    /// Git index changes (affects both dirty and staged files)
+    Index,
     /// Commit history
     History,
     /// All data sources
@@ -102,9 +105,10 @@ impl RepoWatcher {
             let path_str = path.to_string_lossy();
             trace!("Classifying path: {}", path_str);
 
-            // .git/index changes -> staged files
+            // .git/index changes -> affects both staged and dirty files
+            // (staging moves files from dirty to staged, unstaging does the reverse)
             if path_str.contains(".git/index") {
-                return DataSourceKind::StagedFiles;
+                return DataSourceKind::Index;
             }
 
             // .git/refs or .git/HEAD changes -> history
