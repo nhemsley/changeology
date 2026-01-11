@@ -119,6 +119,7 @@ pub fn render_empty_state(message: &str, cx: &App) -> impl IntoElement {
 }
 
 /// Render the history panel with scrollable commit list
+#[allow(dead_code)]
 pub fn render_history_content(
     commits: &[Commit],
     selected_commit: Option<usize>,

@@ -17,6 +17,7 @@ pub struct Commit {
 }
 
 /// History panel state
+#[allow(dead_code)]
 pub struct HistoryPanel {
     /// List of commits (to be populated from git)
     #[allow(dead_code)]
@@ -27,6 +28,7 @@ pub struct HistoryPanel {
 }
 
 impl HistoryPanel {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             commits: Vec::new(),
@@ -35,6 +37,7 @@ impl HistoryPanel {
     }
 
     /// Render the history panel
+    #[allow(dead_code)]
     pub fn render(&self, _window: &mut Window, cx: &App) -> impl IntoElement {
         v_flex()
             .size_full()

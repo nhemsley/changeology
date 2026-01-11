@@ -273,6 +273,7 @@ impl ChangeologyApp {
     }
 
     /// Load diff for a dirty (unstaged) file and display on canvas
+    #[allow(dead_code)]
     fn load_dirty_file_diff(&mut self, file_index: usize, cx: &mut Context<Self>) {
         let Some(entry) = self.dirty_files.get(file_index) else {
             warn!("No dirty file at index {}", file_index);
@@ -503,6 +504,7 @@ impl ChangeologyApp {
             )
     }
 
+    #[allow(dead_code)]
     fn render_file_tree(&self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         let tree_state = self.file_tree_state.clone();
 

@@ -9,6 +9,7 @@ use gpui_component::{tree::TreeItem, ActiveTheme, IconName};
 use std::collections::HashMap;
 
 /// Get the appropriate icon for a file or folder
+#[allow(dead_code)]
 pub fn get_file_icon(is_folder: bool, is_expanded: bool) -> IconName {
     if is_folder {
         if is_expanded {
@@ -23,6 +24,7 @@ pub fn get_file_icon(is_folder: bool, is_expanded: bool) -> IconName {
 
 /// Get the appropriate icon based on file extension
 /// Note: Using File icon for all types since gpui-component has limited icon set
+#[allow(dead_code)]
 pub fn get_file_type_icon(_path: &str) -> IconName {
     // gpui-component 0.5.0 only has basic icons (File, Folder, FolderOpen)
     // All files use the same icon
@@ -57,6 +59,7 @@ pub fn status_indicator(kind: StatusKind) -> &'static str {
 }
 
 /// Build tree items from git status as a flat list
+#[allow(dead_code)]
 pub fn build_flat_tree(status: &StatusList) -> Vec<TreeItem> {
     status
         .entries

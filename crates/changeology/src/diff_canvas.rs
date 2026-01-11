@@ -99,11 +99,10 @@ impl DiffCanvasView {
             };
 
             let diff_clone = diff.clone();
-            self.provider.add_item_at(
-                format!("diff-{}", i),
-                point(px(x), px(y)),
-                move || Self::render_diff_card(&diff_clone),
-            );
+            self.provider
+                .add_item_at(format!("diff-{}", i), point(px(x), px(y)), move || {
+                    Self::render_diff_card(&diff_clone)
+                });
         }
 
         // Reset camera to show content
@@ -131,7 +130,7 @@ impl DiffCanvasView {
         // Collect all diff lines
         let mut diff_lines: Vec<(Option<usize>, Option<usize>, String, DiffLineKind)> = Vec::new();
 
-        for (hunk_idx, hunk) in hunks.iter().enumerate() {
+        for (_hunk_idx, hunk) in hunks.iter().enumerate() {
             let mut old_offset = 0;
             let mut new_offset = 0;
 
@@ -215,13 +214,11 @@ impl DiffCanvasView {
             .child(
                 div()
                     .w_full()
-                    .child(v_flex().w_full().children(
-                        diff_lines.into_iter().map(
-                            |(old_num, new_num, content, kind)| {
-                                Self::render_diff_line_element(old_num, new_num, &content, kind)
-                            },
-                        ),
-                    )),
+                    .child(v_flex().w_full().children(diff_lines.into_iter().map(
+                        |(old_num, new_num, content, kind)| {
+                            Self::render_diff_line_element(old_num, new_num, &content, kind)
+                        },
+                    ))),
             )
             .into_any_element()
     }
@@ -365,12 +362,10 @@ impl Render for DiffCanvasView {
 
             // Create element based on texture state
             let content: AnyElement = match self.provider.texture_state(&item.id) {
-                TextureState::Ready { ref image, .. } => {
-                    img(image.clone())
-                        .size_full()
-                        .object_fit(ObjectFit::Fill)
-                        .into_any_element()
-                }
+                TextureState::Ready { ref image, .. } => img(image.clone())
+                    .size_full()
+                    .object_fit(ObjectFit::Fill)
+                    .into_any_element(),
                 TextureState::Rendering => div()
                     .size_full()
                     .bg(rgb(0x2d2d2d))
@@ -472,47 +467,44 @@ impl Render for DiffCanvasView {
                         }
                     }))
                     // Scroll wheel zoom (centered on cursor)
-                    .on_scroll_wheel(cx.listener(move |this, event: &ScrollWheelEvent, _window, cx| {
-                        let delta = match event.delta {
-                            ScrollDelta::Lines(lines) => lines.y * 0.1,
-                            ScrollDelta::Pixels(pixels) => f32::from(pixels.y) * 0.001,
-                        };
+                    .on_scroll_wheel(cx.listener(
+                        move |this, event: &ScrollWheelEvent, _window, cx| {
+                            let delta = match event.delta {
+                                ScrollDelta::Lines(lines) => lines.y * 0.1,
+                                ScrollDelta::Pixels(pixels) => f32::from(pixels.y) * 0.001,
+                            };
 
-                        // Calculate zoom factor (positive delta = zoom in, negative = zoom out)
-                        // Note: delta sign is reversed from default to match natural scroll expectation
-                        let zoom_factor = 1.0 + delta * options.zoom_speed;
+                            // Calculate zoom factor (positive delta = zoom in, negative = zoom out)
+                            // Note: delta sign is reversed from default to match natural scroll expectation
+                            let zoom_factor = 1.0 + delta * options.zoom_speed;
 
-                        // Use Camera::zoom_around to zoom centered on cursor position
-                        this.camera.zoom_around(
-                            zoom_factor,
-                            event.position,
-                            options.min_zoom,
-                            options.max_zoom,
-                        );
+                            // Use Camera::zoom_around to zoom centered on cursor position
+                            this.camera.zoom_around(
+                                zoom_factor,
+                                event.position,
+                                options.min_zoom,
+                                options.max_zoom,
+                            );
 
-                        cx.notify();
-                    })),
+                            cx.notify();
+                        },
+                    )),
             )
             // Controls overlay - commit info
-            .child(
-                div()
-                    .absolute()
-                    .top_3()
-                    .left_3()
-                    .flex()
-                    .gap_2()
-                    .when_some(commit_info, |el: Div, info| {
-                        el.child(
-                            div()
-                                .px_3()
-                                .py_1()
-                                .bg(cx.theme().muted.opacity(0.9))
-                                .rounded_md()
-                                .text_sm()
-                                .child(format!("{}: {}", info.0, info.1)),
-                        )
-                    }),
-            )
+            .child(div().absolute().top_3().left_3().flex().gap_2().when_some(
+                commit_info,
+                |el: Div, info| {
+                    el.child(
+                        div()
+                            .px_3()
+                            .py_1()
+                            .bg(cx.theme().muted.opacity(0.9))
+                            .rounded_md()
+                            .text_sm()
+                            .child(format!("{}: {}", info.0, info.1)),
+                    )
+                },
+            ))
             // Zoom indicator
             .child(
                 div()
