@@ -130,7 +130,7 @@ impl DiffCanvasView {
         // Collect all diff lines
         let mut diff_lines: Vec<(Option<usize>, Option<usize>, String, DiffLineKind)> = Vec::new();
 
-        for (_hunk_idx, hunk) in hunks.iter().enumerate() {
+        for hunk in hunks.iter() {
             let mut old_offset = 0;
             let mut new_offset = 0;
 
@@ -339,7 +339,7 @@ impl Render for DiffCanvasView {
 
         let viewport = window.viewport_size();
         let items = self.provider.items();
-        let camera = self.camera.clone();
+        let camera = self.camera;
 
         // Collect rendered items
         let mut rendered_items: Vec<AnyElement> = Vec::new();

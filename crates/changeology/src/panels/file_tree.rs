@@ -65,7 +65,7 @@ pub fn build_flat_tree(status: &StatusList) -> Vec<TreeItem> {
         .entries
         .iter()
         .map(|entry| {
-            let filename = entry.path.split('/').last().unwrap_or(&entry.path);
+            let filename = entry.path.split('/').next_back().unwrap_or(&entry.path);
             // Clone the strings to avoid lifetime issues
             TreeItem::new(entry.path.clone(), filename.to_string())
         })

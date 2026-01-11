@@ -35,10 +35,10 @@ pub struct BufferDiffSnapshot {
 impl BufferDiff {
     /// Default chunk size for large file diffing (in lines)
     const DEFAULT_CHUNK_SIZE: usize = 1000;
-    
+
     /// Maximum number of concurrent chunks to process
     const MAX_CONCURRENT_CHUNKS: usize = 8;
-    
+
     /// Create a new buffer diff between two texts
     pub fn new(old_text: &str, new_text: &str) -> Result<Self> {
         let old_rope = Rope::from_str(old_text);
@@ -63,37 +63,37 @@ impl BufferDiff {
             // Get line counts
             let old_line_count = self.old_text.len_lines();
             let new_line_count = self.new_text.len_lines();
-            
+
             // If one or both files are empty, handle as special cases
             if old_line_count <= 1 || new_line_count <= 1 {
                 return self.compute_hunks_simple();
             }
-            
+
             // Determine chunk boundaries for the old text
             let old_chunks = self.calculate_chunk_boundaries(old_line_count);
             let new_chunks = self.calculate_chunk_boundaries(new_line_count);
-            
+
             // Create a shared container for the results
             let all_hunks = Arc::new(Mutex::new(Vec::new()));
-            
+
             // Determine the number of chunks to process (capped at MAX_CONCURRENT_CHUNKS)
             let num_chunks = old_chunks.len().min(new_chunks.len()).min(Self::MAX_CONCURRENT_CHUNKS);
-            
+
             // Process chunks in parallel
             (0..num_chunks).into_par_iter().for_each(|i| {
                 // Get chunk boundaries
-                let old_chunk = old_chunks.get(i).cloned().unwrap_or_else(|| (0, old_line_count));
-                let new_chunk = new_chunks.get(i).cloned().unwrap_or_else(|| (0, new_line_count));
-                
+                let old_chunk = old_chunks.get(i).cloned().unwrap_or((0, old_line_count));
+                let new_chunk = new_chunks.get(i).cloned().unwrap_or((0, new_line_count));
+
                 // Extract chunk text
                 let old_chunk_text = self.extract_chunk_text(&self.old_text, old_chunk.0, old_chunk.1);
                 let new_chunk_text = self.extract_chunk_text(&self.new_text, new_chunk.0, new_chunk.1);
-                
+
                 // Generate diff for this chunk
                 if let Ok(chunk_hunks) = self.diff_chunk(
-                    &old_chunk_text, 
-                    &new_chunk_text, 
-                    old_chunk.0, 
+                    &old_chunk_text,
+                    &new_chunk_text,
+                    old_chunk.0,
                     new_chunk.0
                 ) {
                     // Add results to the shared container
@@ -102,19 +102,19 @@ impl BufferDiff {
                     }
                 }
             });
-            
+
             // Get the final results and sort by position
             let mut final_hunks = match all_hunks.lock() {
                 Ok(guard) => guard.clone(),
                 Err(_) => Vec::new(),
             };
-            
+
             // Sort hunks by their position in the original text
             final_hunks.sort_by_key(|hunk| hunk.old_range.start);
-            
+
             // Merge adjacent or overlapping hunks
             self.hunks = self.merge_adjacent_hunks(final_hunks);
-            
+
             // If no hunks were created, create an unchanged hunk
             if self.hunks.is_empty() {
                 self.hunks.push(DiffHunk::new(
@@ -125,7 +125,7 @@ impl BufferDiff {
                     new_line_count,
                 ));
             }
-            
+
             return Ok(());
         }
 
@@ -258,9 +258,9 @@ impl BufferDiff {
                         let mut context_new_changes = Vec::new();
 
                         // Add unchanged lines as context
-                        for i in context_start..unchanged_lines.len() {
-                            context_old_changes.push(unchanged_lines[i].clone());
-                            context_new_changes.push(unchanged_lines[i].clone());
+                        for line in unchanged_lines.iter().skip(context_start) {
+                            context_old_changes.push(line.clone());
+                            context_new_changes.push(line.clone());
                         }
 
                         // Add actual changes
@@ -355,9 +355,9 @@ impl BufferDiff {
             let mut context_new_changes = Vec::new();
 
             // Add unchanged lines as context
-            for i in context_start..unchanged_lines.len() {
-                context_old_changes.push(unchanged_lines[i].clone());
-                context_new_changes.push(unchanged_lines[i].clone());
+            for line in unchanged_lines.iter().skip(context_start) {
+                context_old_changes.push(line.clone());
+                context_new_changes.push(line.clone());
             }
 
             // Add actual changes
@@ -424,11 +424,10 @@ impl BufferDiff {
 
             for i in before_context..(old_changes.len() - after_context) {
                 let j = i - before_context;
-                if i < old_changes.len() && j + before_context < new_changes.len() {
-                    if old_changes[i] != new_changes[j + before_context] {
-                        is_modified = true;
-                        break;
-                    }
+                if i < old_changes.len() && j + before_context < new_changes.len()
+                    && old_changes[i] != new_changes[j + before_context] {
+                    is_modified = true;
+                    break;
                 }
             }
 
@@ -548,33 +547,33 @@ impl BufferDiff {
     pub fn hunk(&self, index: usize) -> Option<&DiffHunk> {
         self.hunks.get(index)
     }
-    
+
     /// Calculate chunk boundaries for parallel processing
     fn calculate_chunk_boundaries(&self, line_count: usize) -> Vec<(usize, usize)> {
         if line_count <= Self::DEFAULT_CHUNK_SIZE {
             return vec![(0, line_count)];
         }
-        
+
         let chunk_size = Self::DEFAULT_CHUNK_SIZE;
-        let num_chunks = (line_count + chunk_size - 1) / chunk_size; // Ceiling division
+        let num_chunks = line_count.div_ceil(chunk_size);
         let mut chunks = Vec::with_capacity(num_chunks);
-        
+
         for i in 0..num_chunks {
             let start = i * chunk_size;
             let end = (start + chunk_size).min(line_count);
             chunks.push((start, end));
         }
-        
+
         chunks
     }
-    
+
     /// Extract text for a specific chunk
     fn extract_chunk_text(&self, rope: &Rope, start_line: usize, end_line: usize) -> String {
         // Handle edge cases
         if start_line >= rope.len_lines() || start_line >= end_line {
             return String::new();
         }
-        
+
         // Get byte offsets for the lines
         let start_byte = rope.line_to_char(start_line);
         let end_byte = if end_line >= rope.len_lines() {
@@ -582,37 +581,37 @@ impl BufferDiff {
         } else {
             rope.line_to_char(end_line)
         };
-        
+
         // Extract the chunk
         rope.slice(start_byte..end_byte).to_string()
     }
-    
+
     /// Diff a single chunk
     fn diff_chunk(
-        &self, 
-        old_chunk: &str, 
-        new_chunk: &str, 
-        old_offset: usize, 
+        &self,
+        old_chunk: &str,
+        new_chunk: &str,
+        old_offset: usize,
         new_offset: usize
     ) -> Result<Vec<DiffHunk>> {
         // Skip empty chunks
         if old_chunk.is_empty() && new_chunk.is_empty() {
             return Ok(Vec::new());
         }
-        
+
         // Use similar with a timeout to diff the chunk
         let diff = similar::TextDiff::configure()
             .algorithm(similar::Algorithm::Myers)
             .timeout(Duration::from_secs(2))
             .diff_lines(old_chunk, new_chunk);
-        
+
         // Process operations to create hunks with context
         let _context_lines = 3; // Default context size
         let ops = diff.ops();
-        
+
         // Create hunks from operations
         let mut hunks = Vec::new();
-        
+
         // We need to handle each operation separately since the similar API is different
         for op in ops {
             match op {
@@ -624,7 +623,7 @@ impl BufferDiff {
                     // Content was deleted
                     let old_start = old_index + old_offset;
                     let new_start = new_index + new_offset;
-                    
+
                     // Create a delete hunk
                     let mut hunk = DiffHunk::new(
                         DiffHunkStatus::Deleted,
@@ -633,17 +632,17 @@ impl BufferDiff {
                         new_start,
                         0
                     );
-                    
+
                     // Set line types
                     hunk.line_types = vec![crate::diff_hunk::DiffLineType::OldOnly; *old_len];
-                    
+
                     hunks.push(hunk);
                 },
                 similar::DiffOp::Insert { old_index, new_index, new_len } => {
                     // Content was inserted
                     let old_start = old_index + old_offset;
                     let new_start = new_index + new_offset;
-                    
+
                     // Create an add hunk
                     let mut hunk = DiffHunk::new(
                         DiffHunkStatus::Added,
@@ -652,17 +651,17 @@ impl BufferDiff {
                         new_start,
                         *new_len
                     );
-                    
+
                     // Set line types
                     hunk.line_types = vec![crate::diff_hunk::DiffLineType::NewOnly; *new_len];
-                    
+
                     hunks.push(hunk);
                 },
                 similar::DiffOp::Replace { old_index, old_len, new_index, new_len } => {
                     // Content was replaced
                     let old_start = old_index + old_offset;
                     let new_start = new_index + new_offset;
-                    
+
                     // Create a modify hunk
                     let mut hunk = DiffHunk::new(
                         DiffHunkStatus::Modified,
@@ -671,45 +670,45 @@ impl BufferDiff {
                         new_start,
                         *new_len
                     );
-                    
+
                     // Set line types - this is simplified, could be improved with word-level diff
                     let mut line_types = Vec::with_capacity(*old_len + *new_len);
-                    
+
                     // Add old lines
                     for _ in 0..*old_len {
                         line_types.push(crate::diff_hunk::DiffLineType::OldOnly);
                     }
-                    
+
                     // Add new lines
                     for _ in 0..*new_len {
                         line_types.push(crate::diff_hunk::DiffLineType::NewOnly);
                     }
-                    
+
                     hunk.line_types = line_types;
-                    
+
                     hunks.push(hunk);
                 }
             }
         }
-        
+
         Ok(hunks)
     }
-    
+
     /// Merge adjacent or overlapping hunks
     fn merge_adjacent_hunks(&self, mut hunks: Vec<DiffHunk>) -> Vec<DiffHunk> {
         if hunks.len() <= 1 {
             return hunks;
         }
-        
+
         // Sort hunks by old start position
         hunks.sort_by_key(|h| h.old_range.start);
-        
+
         let mut merged = Vec::new();
         let mut current = hunks.remove(0);
-        
+
         for next in hunks {
             // Check if hunks are adjacent or overlapping
-            if current.old_range.end() >= next.old_range.start || 
+            if current.old_range.end() >= next.old_range.start ||
                current.new_range.end() >= next.new_range.start ||
                next.old_range.start - current.old_range.end() <= 3 // Within 3 lines
             {
@@ -721,13 +720,13 @@ impl BufferDiff {
                 current = next;
             }
         }
-        
+
         // Add the last hunk
         merged.push(current);
-        
+
         merged
     }
-    
+
     /// Merge two hunks into one
     fn merge_hunks(&self, first: DiffHunk, second: DiffHunk) -> DiffHunk {
         // Calculate the new ranges
@@ -735,14 +734,14 @@ impl BufferDiff {
         let old_end = first.old_range.end().max(second.old_range.end());
         let new_start = first.new_range.start.min(second.new_range.start);
         let new_end = first.new_range.end().max(second.new_range.end());
-        
+
         // Determine the merged status
         let status = if first.status == DiffHunkStatus::Unchanged && second.status == DiffHunkStatus::Unchanged {
             DiffHunkStatus::Unchanged
         } else {
             DiffHunkStatus::Modified
         };
-        
+
         // Create the merged hunk
         let mut merged = DiffHunk::new(
             status,
@@ -751,34 +750,34 @@ impl BufferDiff {
             new_start,
             new_end - new_start,
         );
-        
+
         // Combine line types (this is a simplified approach)
         let mut line_types = Vec::new();
-        
+
         // Add line types from the first hunk
         line_types.extend(first.line_types.iter().cloned());
-        
+
         // Add line types from the second hunk
         line_types.extend(second.line_types.iter().cloned());
-        
+
         // Set line types on the merged hunk
         merged.line_types = line_types;
-        
+
         merged
     }
-    
+
     /// Compute hunks using the simple approach for special cases
     fn compute_hunks_simple(&mut self) -> Result<()> {
         // Convert entire ropes to strings
         let old_text_str = self.old_text.to_string();
         let new_text_str = self.new_text.to_string();
-        
+
         // Special case: if both are empty
         if old_text_str.is_empty() && new_text_str.is_empty() {
             self.hunks.push(DiffHunk::new(DiffHunkStatus::Unchanged, 0, 0, 0, 0));
             return Ok(());
         }
-        
+
         // Special case: if old is empty but new is not, this is an added file
         if old_text_str.is_empty() && !new_text_str.is_empty() {
             let new_line_count = self.new_text.len_lines().saturating_sub(1).max(1);
@@ -787,7 +786,7 @@ impl BufferDiff {
             self.hunks.push(hunk);
             return Ok(());
         }
-        
+
         // Special case: if new is empty but old is not, this is a deleted file
         if !old_text_str.is_empty() && new_text_str.is_empty() {
             let old_line_count = self.old_text.len_lines().saturating_sub(1).max(1);
@@ -796,16 +795,16 @@ impl BufferDiff {
             self.hunks.push(hunk);
             return Ok(());
         }
-        
+
         // For other cases, use the standard diff with a timeout
         let diff = similar::TextDiff::configure()
             .algorithm(similar::Algorithm::Myers)
             .timeout(Duration::from_secs(5))
             .diff_lines(&old_text_str, &new_text_str);
-        
+
         // Process the diff using the existing code path
         self.process_diffs(diff)?;
-        
+
         Ok(())
     }
 }
