@@ -75,9 +75,10 @@ pub fn render_commit_entry(index: usize, commit: &Commit, is_selected: bool, cx:
                 .child(
                     h_flex()
                         .w_full()
+                        .gap_2()
                         .justify_between()
                         .child(
-                            div().text_sm().max_w(px(180.)).overflow_hidden().child(
+                            div().text_sm().flex_auto().overflow_hidden().child(
                                 commit
                                     .message
                                     .lines()
@@ -89,6 +90,7 @@ pub fn render_commit_entry(index: usize, commit: &Commit, is_selected: bool, cx:
                         .child(
                             div()
                                 .text_xs()
+                                .flex_shrink_0()
                                 .text_color(cx.theme().muted_foreground)
                                 .child(commit.short_id.clone()),
                         ),
