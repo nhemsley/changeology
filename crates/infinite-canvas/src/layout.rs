@@ -159,7 +159,7 @@ impl Layout for GridLayout {
         }
 
         let num_items = items.len();
-        let rows = (num_items + self.columns - 1) / self.columns;
+        let rows = num_items.div_ceil(self.columns);
         let cols = num_items.min(self.columns);
 
         let width = self.cell_size.width * cols as f32 + self.gap * (cols.saturating_sub(1)) as f32;
@@ -594,7 +594,7 @@ impl Layout for PackLayout {
         }
 
         // Apply layout to a clone to calculate bounds
-        let mut items: Vec<_> = items.iter().cloned().collect();
+        let mut items: Vec<_> = items.to_vec();
         self.apply(&mut items);
 
         let mut max_x = self.origin.x;

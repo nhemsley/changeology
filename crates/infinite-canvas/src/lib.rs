@@ -46,8 +46,8 @@ pub mod prelude {
     pub use crate::layout::{GridLayout, Layout, TreeLayout};
     pub use crate::options::CanvasOptions;
     pub use crate::textured_provider::{
-        CanvasItemDescriptor, CanvasItemId, CanvasItemsProvider, DownscaleMode, TextureState,
-        TexturedCanvasItemsProvider, TexturedItemElement, downscale_pixels,
+        CanvasItemDescriptor, CanvasItemElement, CanvasItemId, TextureState,
+        TexturedCanvasItemsProvider,
     };
     // Re-export ItemSizing from gpui for convenient API access
     pub use gpui::ItemSizing;

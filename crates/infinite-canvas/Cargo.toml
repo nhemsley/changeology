@@ -31,6 +31,8 @@ serde.workspace = true
 smallvec = "1"
 image = "0.25"
 flume = "0.11"
+log = { version = "0.4.16", features = ["kv_unstable_serde", "serde"] }
 
 [dev-dependencies]
 rand = "0.8"
+env_logger = "0.11"

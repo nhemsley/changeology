@@ -291,7 +291,7 @@ impl<D: Clone + 'static> Element for CanvasElement<D> {
         window: &mut Window,
         cx: &mut App,
     ) {
-        let camera = prepaint.camera.borrow().clone();
+        let camera = *prepaint.camera.borrow();
         let options = &self.options;
         let hitbox = &prepaint.hitbox;
 
@@ -349,8 +349,8 @@ impl<D: Clone + 'static> Element for CanvasElement<D> {
             let on_camera_change = self.on_camera_change.clone();
 
             window.on_mouse_event(move |event: &ScrollWheelEvent, phase, window, cx| {
-                if phase.bubble() && hitbox_id.is_hovered(window) {
-                    if options_clone.wheel_behavior.is_zoom() {
+                if phase.bubble() && hitbox_id.is_hovered(window)
+                    && options_clone.wheel_behavior.is_zoom() {
                         let mut camera = camera_rc.borrow_mut();
                         let delta = event.delta.pixel_delta(px(20.));
                         let zoom_factor =
@@ -373,7 +373,6 @@ impl<D: Clone + 'static> Element for CanvasElement<D> {
                         window.refresh();
                         cx.notify(view_id);
                     }
-                }
             });
         }
 
@@ -383,12 +382,11 @@ impl<D: Clone + 'static> Element for CanvasElement<D> {
             let last_pan_position = prepaint.last_pan_position.clone();
 
             window.on_mouse_event(move |event: &MouseDownEvent, phase, window, _cx| {
-                if phase.bubble() && hitbox_id.is_hovered(window) {
-                    if event.button == MouseButton::Middle {
+                if phase.bubble() && hitbox_id.is_hovered(window)
+                    && event.button == MouseButton::Middle {
                         *is_panning.borrow_mut() = true;
                         *last_pan_position.borrow_mut() = event.position;
                     }
-                }
             });
         }
 
@@ -431,11 +429,10 @@ impl<D: Clone + 'static> Element for CanvasElement<D> {
             let is_panning = prepaint.is_panning.clone();
 
             window.on_mouse_event(move |event: &MouseUpEvent, phase, _window, _cx| {
-                if phase.bubble() {
-                    if event.button == MouseButton::Middle {
+                if phase.bubble()
+                    && event.button == MouseButton::Middle {
                         *is_panning.borrow_mut() = false;
                     }
-                }
             });
         }
     }
@@ -519,7 +516,7 @@ impl<D: Clone + 'static> CanvasElement<D> {
         // Draw background with rounded corners
         window.paint_quad(gpui::PaintQuad {
             bounds,
-            corner_radii: gpui::Corners::all(px(4.).into()),
+            corner_radii: gpui::Corners::all(px(4.)),
             background: bg_color.into(),
             border_widths: gpui::Edges::all(px(1.)),
             border_color: border_color.into(),
