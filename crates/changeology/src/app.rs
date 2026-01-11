@@ -1,3 +1,8 @@
+use std::path::PathBuf;
+use std::time::Duration;
+
+use log::{debug, info, warn};
+
 use gpui::*;
 
 use gpui_component::{
@@ -15,6 +20,7 @@ use crate::diff_canvas::{DiffCanvasView, FileDiff};
 use crate::menu::*;
 use crate::panels::file_tree;
 use crate::sidebar;
+use crate::watcher::{DataSourceKind, RepoWatcher};
 use buffer_diff::DiffConfig;
 use git::{Commit, Repository};
 
@@ -23,7 +29,10 @@ pub struct ChangeologyApp {
     repository: Option<Repository>,
 
     /// Current working directory path
-    cwd: Option<String>,
+    cwd: Option<PathBuf>,
+
+    /// File system watcher for repository changes
+    watcher: Option<RepoWatcher>,
 
     /// Whether the sidebar is collapsed
     #[allow(dead_code)]
@@ -66,11 +75,18 @@ pub struct ChangeologyApp {
 
 impl ChangeologyApp {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        info!("ChangeologyApp::new - initializing application");
+
         // Try to open repository at current directory
-        let cwd = std::env::current_dir()
-            .ok()
-            .map(|p| p.display().to_string());
+        let cwd = std::env::current_dir().ok();
+        info!("Working directory: {:?}", cwd);
+
         let repository = cwd.as_ref().and_then(|path| Repository::open(path).ok());
+        info!("Repository opened: {}", repository.is_some());
+
+        // Create file watcher for the repository
+        let watcher = cwd.as_ref().and_then(|path| RepoWatcher::new(path).ok());
+        info!("File watcher created: {}", watcher.is_some());
 
         // Create tree state
         let file_tree_state = cx.new(|cx| TreeState::new(cx));
@@ -81,6 +97,7 @@ impl ChangeologyApp {
         let mut app = Self {
             repository,
             cwd,
+            watcher,
             sidebar_collapsed: false,
             dirty_files: Vec::new(),
             staged_files: Vec::new(),
@@ -96,37 +113,157 @@ impl ChangeologyApp {
         };
 
         // Load initial data
-        app.refresh(window, cx);
+        info!("Loading initial data...");
+        app.refresh_source(DataSourceKind::All, cx);
+
+        // Start polling for file system changes
+        info!("Starting file system polling loop");
+        cx.spawn(
+            async move |this: WeakEntity<Self>, cx: &mut AsyncApp| loop {
+                cx.background_executor()
+                    .timer(Duration::from_millis(500))
+                    .await;
+
+                let should_refresh = this
+                    .update(cx, |this: &mut Self, _cx| {
+                        this.watcher
+                            .as_ref()
+                            .and_then(|w: &RepoWatcher| w.poll_changes())
+                    })
+                    .ok()
+                    .flatten();
+
+                if let Some(kind) = should_refresh {
+                    info!("File system change detected, refreshing: {:?}", kind);
+                    let _ = this.update(cx, |this: &mut Self, cx: &mut Context<Self>| {
+                        this.refresh_source(kind, cx);
+                    });
+                }
+            },
+        )
+        .detach();
 
         app
     }
 
-    pub fn refresh(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(repo) = &self.repository {
-            // Load dirty (unstaged) files
-            if let Ok(dirty) = repo.unstaged_changes() {
-                self.dirty_files = dirty;
-            }
+    /// Refresh a specific data source
+    pub fn refresh_source(&mut self, kind: DataSourceKind, cx: &mut Context<Self>) {
+        debug!("refresh_source called with kind: {:?}", kind);
 
-            // Load staged files
-            if let Ok(staged) = repo.staged_changes() {
-                self.staged_files = staged;
-            }
+        if self.repository.is_none() {
+            debug!("No repository, skipping refresh");
+            return;
+        }
 
-            // Load file status for file tree
-            if let Ok(status) = repo.status() {
-                let items = file_tree::build_nested_tree(&status);
-                self.file_tree_state.update(cx, |state, cx| {
-                    state.set_items(items, cx);
-                });
+        match kind {
+            DataSourceKind::DirtyFiles => {
+                self.refresh_dirty_files(cx);
             }
-
-            // Load commit history (limit to 100 most recent commits)
-            if let Ok(commits) = repo.log(Some(100)) {
-                self.commits = commits;
+            DataSourceKind::StagedFiles => {
+                self.refresh_staged_files();
+            }
+            DataSourceKind::History => {
+                self.refresh_history();
+            }
+            DataSourceKind::All => {
+                self.refresh_dirty_files(cx);
+                self.refresh_staged_files();
+                self.refresh_history();
             }
         }
+
         cx.notify();
+    }
+
+    fn refresh_dirty_files(&mut self, cx: &mut Context<Self>) {
+        let Some(repo) = &self.repository else { return };
+
+        if let Ok(dirty) = repo.unstaged_changes() {
+            debug!("Refreshed dirty files: {} files", dirty.len());
+            self.dirty_files = dirty;
+        }
+
+        // Also update file tree since it shows all status
+        if let Ok(status) = repo.status() {
+            let items = file_tree::build_nested_tree(&status);
+            self.file_tree_state.update(cx, |state, cx| {
+                state.set_items(items, cx);
+            });
+        }
+    }
+
+    fn refresh_staged_files(&mut self) {
+        let Some(repo) = &self.repository else { return };
+
+        if let Ok(staged) = repo.staged_changes() {
+            debug!("Refreshed staged files: {} files", staged.len());
+            self.staged_files = staged;
+        }
+    }
+
+    fn refresh_history(&mut self) {
+        let Some(repo) = &self.repository else { return };
+
+        if let Ok(commits) = repo.log(Some(100)) {
+            debug!("Refreshed history: {} commits", commits.len());
+            self.commits = commits;
+        }
+    }
+
+    /// Load diff for a dirty (unstaged) file and display on canvas
+    fn load_dirty_file_diff(&mut self, file_index: usize, cx: &mut Context<Self>) {
+        let Some(entry) = self.dirty_files.get(file_index) else {
+            warn!("No dirty file at index {}", file_index);
+            return;
+        };
+        let Some(repo) = &self.repository else {
+            warn!("No repository available");
+            return;
+        };
+
+        let file_path = &entry.path;
+        info!("Loading diff for dirty file: {}", file_path);
+
+        // Get HEAD version (empty string for new/untracked files)
+        let old_content = repo
+            .get_content_at_revision("HEAD", file_path)
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+
+        // Get working directory version (empty string for deleted files)
+        let new_content = repo
+            .get_working_content(file_path)
+            .ok()
+            .flatten()
+            .unwrap_or_default();
+
+        debug!(
+            "Diff content: old={} bytes, new={} bytes",
+            old_content.len(),
+            new_content.len()
+        );
+
+        // Compute diff
+        let config = DiffConfig::default();
+        match config.diff(&old_content, &new_content) {
+            Ok(buffer_diff) => {
+                let diffs = vec![FileDiff {
+                    path: file_path.clone(),
+                    old_content,
+                    new_content,
+                    buffer_diff,
+                }];
+
+                self.diff_canvas.update(cx, |canvas, cx| {
+                    canvas.set_diffs(diffs, None, cx); // None = no commit info for dirty files
+                });
+                info!("Loaded diff for dirty file: {}", file_path);
+            }
+            Err(e) => {
+                warn!("Failed to compute diff for {}: {}", file_path, e);
+            }
+        }
     }
 
     fn load_commit_diffs(&mut self, commit_index: usize, cx: &mut Context<Self>) {
@@ -220,7 +357,7 @@ impl ChangeologyApp {
                     .child(
                         self.cwd
                             .as_ref()
-                            .and_then(|p| std::path::Path::new(p).file_name())
+                            .and_then(|p| p.file_name())
                             .map(|n| n.to_string_lossy().to_string())
                             .unwrap_or_else(|| "No Repository".to_string()),
                     ),
@@ -254,6 +391,7 @@ impl ChangeologyApp {
                                 .on_click(cx.listener(
                                     move |this, _: &gpui::ClickEvent, _window, cx| {
                                         this.selected_dirty_file = Some(i);
+                                        this.load_dirty_file_diff(i, cx);
                                         cx.notify();
                                     },
                                 ))

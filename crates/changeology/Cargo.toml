@@ -24,3 +24,10 @@ gpui-component.workspace = true
 # General
 anyhow.workspace = true
 rand = "0.8.5"
+
+# File system watching
+notify = "8.2.0"
+
+# Logging
+log = "0.4"
+env_logger = "0.11"

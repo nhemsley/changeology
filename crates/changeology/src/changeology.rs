@@ -3,11 +3,19 @@ mod diff_canvas;
 mod menu;
 mod panels;
 mod sidebar;
+mod watcher;
 
 use gpui::*;
 use gpui_component::{Root, TitleBar};
+use log::info;
 
 fn main() {
+    // Initialize logging - set RUST_LOG=debug or RUST_LOG=changeology=debug for more output
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("changeology=info"))
+        .init();
+
+    info!("Starting Changeology...");
+
     let app = Application::new().with_assets(gpui_component_assets::Assets);
 
     app.run(move |cx| {
