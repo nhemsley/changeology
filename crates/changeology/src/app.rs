@@ -14,6 +14,7 @@ use gpui_component::{
 use crate::diff_canvas::{DiffCanvasView, FileDiff};
 use crate::menu::*;
 use crate::panels::file_tree;
+use crate::sidebar;
 use buffer_diff::DiffConfig;
 use git::{Commit, Repository};
 
@@ -229,81 +230,36 @@ impl ChangeologyApp {
     fn render_dirty_files(&self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         v_flex()
             .size_full()
-            .child(
-                // Header
-                div()
-                    .px_2()
-                    .py_1()
-                    .border_b_1()
-                    .border_color(cx.theme().border)
-                    .child(
-                        h_flex()
-                            .justify_between()
-                            .items_center()
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child("CHANGES"),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child(format!("{}", self.dirty_files.len())),
-                            ),
-                    ),
-            )
+            .child(sidebar::render_section_header(
+                "CHANGES",
+                self.dirty_files.len(),
+                cx,
+            ))
             .child(
                 // Content
                 div()
                     .flex_auto()
                     .overflow_hidden()
-                    .child(v_flex().w_full().children(if self.dirty_files.is_empty() {
-                        vec![div()
-                            .p_4()
-                            .text_xs()
-                            .text_color(cx.theme().muted_foreground)
-                            .child("No changes")
-                            .into_any_element()]
-                    } else {
-                        self.dirty_files
-                            .iter()
-                            .enumerate()
-                            .map(|(i, entry)| {
+                    .child(
+                        v_flex()
+                            .w_full()
+                            .children(self.dirty_files.iter().enumerate().map(|(i, entry)| {
                                 let is_selected = self.selected_dirty_file == Some(i);
-                                let status_icon =
-                                    crate::panels::file_tree::status_indicator(entry.kind);
-                                let status_color =
-                                    crate::panels::file_tree::status_color(entry.kind, cx);
-
-                                ListItem::new(format!("dirty-{}", i))
-                                    .selected(is_selected)
-                                    .py(px(2.))
-                                    .on_click(cx.listener(
-                                        move |this, _: &gpui::ClickEvent, _window, cx| {
-                                            this.selected_dirty_file = Some(i);
-                                            cx.notify();
-                                        },
-                                    ))
-                                    .child(
-                                        h_flex()
-                                            .gap_2()
-                                            .items_center()
-                                            .child(
-                                                div()
-                                                    .text_xs()
-                                                    .font_weight(gpui::FontWeight::BOLD)
-                                                    .text_color(status_color)
-                                                    .child(status_icon),
-                                            )
-                                            .child(div().text_sm().child(entry.path.clone())),
-                                    )
-                                    .into_any_element()
-                            })
-                            .collect()
-                    })),
+                                sidebar::render_file_entry(
+                                    format!("dirty-{}", i),
+                                    entry,
+                                    is_selected,
+                                    cx,
+                                )
+                                .on_click(cx.listener(
+                                    move |this, _: &gpui::ClickEvent, _window, cx| {
+                                        this.selected_dirty_file = Some(i);
+                                        cx.notify();
+                                    },
+                                ))
+                                .into_any_element()
+                            })),
+                    ),
             )
     }
 
@@ -314,81 +270,36 @@ impl ChangeologyApp {
     ) -> impl IntoElement {
         v_flex()
             .size_full()
-            .child(
-                // Header
-                div()
-                    .px_2()
-                    .py_1()
-                    .border_b_1()
-                    .border_color(cx.theme().border)
-                    .child(
-                        h_flex()
-                            .justify_between()
-                            .items_center()
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child("STAGED"),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child(format!("{}", self.staged_files.len())),
-                            ),
-                    ),
-            )
+            .child(sidebar::render_section_header(
+                "STAGED",
+                self.staged_files.len(),
+                cx,
+            ))
             .child(
                 // Content
                 div()
                     .flex_auto()
                     .overflow_hidden()
-                    .child(v_flex().w_full().children(if self.staged_files.is_empty() {
-                        vec![div()
-                            .p_4()
-                            .text_xs()
-                            .text_color(cx.theme().muted_foreground)
-                            .child("No staged files")
-                            .into_any_element()]
-                    } else {
-                        self.staged_files
-                            .iter()
-                            .enumerate()
-                            .map(|(i, entry)| {
+                    .child(
+                        v_flex()
+                            .w_full()
+                            .children(self.staged_files.iter().enumerate().map(|(i, entry)| {
                                 let is_selected = self.selected_staged_file == Some(i);
-                                let status_icon =
-                                    crate::panels::file_tree::status_indicator(entry.kind);
-                                let status_color =
-                                    crate::panels::file_tree::status_color(entry.kind, cx);
-
-                                ListItem::new(format!("staged-{}", i))
-                                    .selected(is_selected)
-                                    .py(px(2.))
-                                    .on_click(cx.listener(
-                                        move |this, _: &gpui::ClickEvent, _window, cx| {
-                                            this.selected_staged_file = Some(i);
-                                            cx.notify();
-                                        },
-                                    ))
-                                    .child(
-                                        h_flex()
-                                            .gap_2()
-                                            .items_center()
-                                            .child(
-                                                div()
-                                                    .text_xs()
-                                                    .font_weight(gpui::FontWeight::BOLD)
-                                                    .text_color(status_color)
-                                                    .child(status_icon),
-                                            )
-                                            .child(div().text_sm().child(entry.path.clone())),
-                                    )
-                                    .into_any_element()
-                            })
-                            .collect()
-                    })),
+                                sidebar::render_file_entry(
+                                    format!("staged-{}", i),
+                                    entry,
+                                    is_selected,
+                                    cx,
+                                )
+                                .on_click(cx.listener(
+                                    move |this, _: &gpui::ClickEvent, _window, cx| {
+                                        this.selected_staged_file = Some(i);
+                                        cx.notify();
+                                    },
+                                ))
+                                .into_any_element()
+                            })),
+                    ),
             )
     }
 
@@ -435,32 +346,11 @@ impl ChangeologyApp {
     ) -> impl IntoElement {
         v_flex()
             .size_full()
-            .child(
-                // Header
-                div()
-                    .px_2()
-                    .py_1()
-                    .border_b_1()
-                    .border_color(cx.theme().border)
-                    .child(
-                        h_flex()
-                            .justify_between()
-                            .items_center()
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .font_weight(gpui::FontWeight::SEMIBOLD)
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child("HISTORY"),
-                            )
-                            .child(
-                                div()
-                                    .text_xs()
-                                    .text_color(cx.theme().muted_foreground)
-                                    .child(format!("{}", self.commits.len())),
-                            ),
-                    ),
-            )
+            .child(sidebar::render_section_header(
+                "HISTORY",
+                self.commits.len(),
+                cx,
+            ))
             .child(
                 // Content - scrollable area
                 div()
@@ -469,28 +359,13 @@ impl ChangeologyApp {
                     .overflow_y_scroll()
                     .track_scroll(&self.history_scroll_handle)
                     .child(if self.commits.is_empty() {
-                        v_flex()
-                            .size_full()
-                            .p_4()
-                            .items_center()
-                            .justify_center()
-                            .text_color(cx.theme().muted_foreground)
-                            .child(
-                                Icon::new(IconName::Inbox)
-                                    .size(px(24.))
-                                    .text_color(cx.theme().muted_foreground),
-                            )
-                            .child(div().text_xs().mt_2().child("No commits"))
-                            .into_any_element()
+                        sidebar::render_empty_state("No commits", cx).into_any_element()
                     } else {
                         v_flex()
                             .w_full()
                             .children(self.commits.iter().enumerate().map(|(i, commit)| {
                                 let is_selected = self.selected_commit == Some(i);
-
-                                ListItem::new(format!("commit-{}", i))
-                                    .selected(is_selected)
-                                    .py(px(2.))
+                                sidebar::render_commit_entry(i, commit, is_selected, cx)
                                     .on_click(cx.listener(
                                         move |this, _: &gpui::ClickEvent, _window, cx| {
                                             this.selected_commit = Some(i);
@@ -498,42 +373,7 @@ impl ChangeologyApp {
                                             cx.notify();
                                         },
                                     ))
-                                    .child(
-                                        v_flex()
-                                            .w_full()
-                                            .gap_1()
-                                            .child(
-                                                h_flex()
-                                                    .w_full()
-                                                    .justify_between()
-                                                    .child(
-                                                        div()
-                                                            .text_sm()
-                                                            .max_w(px(180.))
-                                                            .overflow_hidden()
-                                                            .child(
-                                                                commit
-                                                                    .message
-                                                                    .lines()
-                                                                    .next()
-                                                                    .unwrap_or(&commit.message)
-                                                                    .to_string(),
-                                                            ),
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .text_xs()
-                                                            .text_color(cx.theme().muted_foreground)
-                                                            .child(commit.short_id.clone()),
-                                                    ),
-                                            )
-                                            .child(
-                                                div()
-                                                    .text_xs()
-                                                    .text_color(cx.theme().muted_foreground)
-                                                    .child(format_timestamp(commit.time)),
-                                            ),
-                                    )
+                                    .into_any_element()
                             }))
                             .into_any_element()
                     })
@@ -601,33 +441,5 @@ impl Render for ChangeologyApp {
             // Required: Render overlay layers for dialogs/notifications
             .children(Root::render_dialog_layer(window, cx))
             .children(Root::render_notification_layer(window, cx))
-    }
-}
-
-/// Format a Unix timestamp as a human-readable string
-fn format_timestamp(timestamp: i64) -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64;
-
-    let diff = now - timestamp;
-
-    if diff < 60 {
-        "just now".to_string()
-    } else if diff < 3600 {
-        format!("{} minutes ago", diff / 60)
-    } else if diff < 86400 {
-        format!("{} hours ago", diff / 3600)
-    } else if diff < 604800 {
-        format!("{} days ago", diff / 86400)
-    } else if diff < 2592000 {
-        format!("{} weeks ago", diff / 604800)
-    } else if diff < 31536000 {
-        format!("{} months ago", diff / 2592000)
-    } else {
-        format!("{} years ago", diff / 31536000)
     }
 }

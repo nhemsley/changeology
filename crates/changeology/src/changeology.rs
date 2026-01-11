@@ -2,6 +2,7 @@ mod app;
 mod diff_canvas;
 mod menu;
 mod panels;
+mod sidebar;
 
 use gpui::*;
 use gpui_component::{Root, TitleBar};
