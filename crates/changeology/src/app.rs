@@ -6,7 +6,7 @@ use gpui_component::{
     list::ListItem,
     menu::{DropdownMenu, PopupMenu},
     resizable::{h_resizable, resizable_panel},
-
+    scroll::Scrollbar,
     tree::{tree, TreeState},
     v_flex, ActiveTheme, Icon, IconName, Root, Sizable, TitleBar,
 };
@@ -58,6 +58,9 @@ pub struct ChangeologyApp {
 
     /// The diff canvas view for displaying diffs
     diff_canvas: Entity<DiffCanvasView>,
+
+    /// Scroll handle for history list
+    history_scroll_handle: ScrollHandle,
 }
 
 impl ChangeologyApp {
@@ -88,6 +91,7 @@ impl ChangeologyApp {
             selected_commit: None,
             commit_diffs: Vec::new(),
             diff_canvas,
+            history_scroll_handle: ScrollHandle::new(),
         };
 
         // Load initial data
@@ -241,73 +245,73 @@ impl ChangeologyApp {
                                     .text_xs()
                                     .font_weight(gpui::FontWeight::SEMIBOLD)
                                     .text_color(cx.theme().muted_foreground)
-                                    .child("CHANGES")
+                                    .child("CHANGES"),
                             )
                             .child(
                                 div()
                                     .text_xs()
                                     .text_color(cx.theme().muted_foreground)
-                                    .child(format!("{}", self.dirty_files.len()))
-                            )
-                    )
+                                    .child(format!("{}", self.dirty_files.len())),
+                            ),
+                    ),
             )
             .child(
                 // Content
                 div()
                     .flex_1()
                     .overflow_hidden()
-                    .child(
-                        v_flex()
-                            .w_full()
-                            .children(
-                                if self.dirty_files.is_empty() {
-                                    vec![
-                                        div()
-                                            .p_4()
-                                            .text_xs()
-                                            .text_color(cx.theme().muted_foreground)
-                                            .child("No changes")
-                                            .into_any_element()
-                                    ]
-                                } else {
-                                    self.dirty_files.iter().enumerate().map(|(i, entry)| {
-                                        let is_selected = self.selected_dirty_file == Some(i);
-                                        let status_icon = crate::panels::file_tree::status_indicator(entry.kind);
-                                        let status_color = crate::panels::file_tree::status_color(entry.kind, cx);
+                    .child(v_flex().w_full().children(if self.dirty_files.is_empty() {
+                        vec![div()
+                            .p_4()
+                            .text_xs()
+                            .text_color(cx.theme().muted_foreground)
+                            .child("No changes")
+                            .into_any_element()]
+                    } else {
+                        self.dirty_files
+                            .iter()
+                            .enumerate()
+                            .map(|(i, entry)| {
+                                let is_selected = self.selected_dirty_file == Some(i);
+                                let status_icon =
+                                    crate::panels::file_tree::status_indicator(entry.kind);
+                                let status_color =
+                                    crate::panels::file_tree::status_color(entry.kind, cx);
 
-                                        ListItem::new(format!("dirty-{}", i))
-                                            .selected(is_selected)
-                                            .py(px(2.))
-                                            .on_click(cx.listener(move |this, _: &gpui::ClickEvent, _window, cx| {
-                                                this.selected_dirty_file = Some(i);
-                                                cx.notify();
-                                            }))
+                                ListItem::new(format!("dirty-{}", i))
+                                    .selected(is_selected)
+                                    .py(px(2.))
+                                    .on_click(cx.listener(
+                                        move |this, _: &gpui::ClickEvent, _window, cx| {
+                                            this.selected_dirty_file = Some(i);
+                                            cx.notify();
+                                        },
+                                    ))
+                                    .child(
+                                        h_flex()
+                                            .gap_2()
+                                            .items_center()
                                             .child(
-                                                h_flex()
-                                                    .gap_2()
-                                                    .items_center()
-                                                    .child(
-                                                        div()
-                                                            .text_xs()
-                                                            .font_weight(gpui::FontWeight::BOLD)
-                                                            .text_color(status_color)
-                                                            .child(status_icon)
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .text_sm()
-                                                            .child(entry.path.clone())
-                                                    )
+                                                div()
+                                                    .text_xs()
+                                                    .font_weight(gpui::FontWeight::BOLD)
+                                                    .text_color(status_color)
+                                                    .child(status_icon),
                                             )
-                                            .into_any_element()
-                                    }).collect()
-                                }
-                            )
-                    )
+                                            .child(div().text_sm().child(entry.path.clone())),
+                                    )
+                                    .into_any_element()
+                            })
+                            .collect()
+                    })),
             )
     }
 
-    fn render_staging_area(&self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_staging_area(
+        &self,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement {
         v_flex()
             .size_full()
             .child(
@@ -326,69 +330,65 @@ impl ChangeologyApp {
                                     .text_xs()
                                     .font_weight(gpui::FontWeight::SEMIBOLD)
                                     .text_color(cx.theme().muted_foreground)
-                                    .child("STAGED")
+                                    .child("STAGED"),
                             )
                             .child(
                                 div()
                                     .text_xs()
                                     .text_color(cx.theme().muted_foreground)
-                                    .child(format!("{}", self.staged_files.len()))
-                            )
-                    )
+                                    .child(format!("{}", self.staged_files.len())),
+                            ),
+                    ),
             )
             .child(
                 // Content
                 div()
                     .flex_1()
                     .overflow_hidden()
-                    .child(
-                        v_flex()
-                            .w_full()
-                            .children(
-                                if self.staged_files.is_empty() {
-                                    vec![
-                                        div()
-                                            .p_4()
-                                            .text_xs()
-                                            .text_color(cx.theme().muted_foreground)
-                                            .child("No staged files")
-                                            .into_any_element()
-                                    ]
-                                } else {
-                                    self.staged_files.iter().enumerate().map(|(i, entry)| {
-                                        let is_selected = self.selected_staged_file == Some(i);
-                                        let status_icon = crate::panels::file_tree::status_indicator(entry.kind);
-                                        let status_color = crate::panels::file_tree::status_color(entry.kind, cx);
+                    .child(v_flex().w_full().children(if self.staged_files.is_empty() {
+                        vec![div()
+                            .p_4()
+                            .text_xs()
+                            .text_color(cx.theme().muted_foreground)
+                            .child("No staged files")
+                            .into_any_element()]
+                    } else {
+                        self.staged_files
+                            .iter()
+                            .enumerate()
+                            .map(|(i, entry)| {
+                                let is_selected = self.selected_staged_file == Some(i);
+                                let status_icon =
+                                    crate::panels::file_tree::status_indicator(entry.kind);
+                                let status_color =
+                                    crate::panels::file_tree::status_color(entry.kind, cx);
 
-                                        ListItem::new(format!("staged-{}", i))
-                                            .selected(is_selected)
-                                            .py(px(2.))
-                                            .on_click(cx.listener(move |this, _: &gpui::ClickEvent, _window, cx| {
-                                                this.selected_staged_file = Some(i);
-                                                cx.notify();
-                                            }))
+                                ListItem::new(format!("staged-{}", i))
+                                    .selected(is_selected)
+                                    .py(px(2.))
+                                    .on_click(cx.listener(
+                                        move |this, _: &gpui::ClickEvent, _window, cx| {
+                                            this.selected_staged_file = Some(i);
+                                            cx.notify();
+                                        },
+                                    ))
+                                    .child(
+                                        h_flex()
+                                            .gap_2()
+                                            .items_center()
                                             .child(
-                                                h_flex()
-                                                    .gap_2()
-                                                    .items_center()
-                                                    .child(
-                                                        div()
-                                                            .text_xs()
-                                                            .font_weight(gpui::FontWeight::BOLD)
-                                                            .text_color(status_color)
-                                                            .child(status_icon)
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .text_sm()
-                                                            .child(entry.path.clone())
-                                                    )
+                                                div()
+                                                    .text_xs()
+                                                    .font_weight(gpui::FontWeight::BOLD)
+                                                    .text_color(status_color)
+                                                    .child(status_icon),
                                             )
-                                            .into_any_element()
-                                    }).collect()
-                                }
-                            )
-                    )
+                                            .child(div().text_sm().child(entry.path.clone())),
+                                    )
+                                    .into_any_element()
+                            })
+                            .collect()
+                    })),
             )
     }
 
@@ -451,90 +451,93 @@ impl ChangeologyApp {
                                     .text_xs()
                                     .font_weight(gpui::FontWeight::SEMIBOLD)
                                     .text_color(cx.theme().muted_foreground)
-                                    .child("HISTORY")
+                                    .child("HISTORY"),
                             )
                             .child(
                                 div()
                                     .text_xs()
                                     .text_color(cx.theme().muted_foreground)
-                                    .child(format!("{}", self.commits.len()))
-                            )
-                    )
+                                    .child(format!("{}", self.commits.len())),
+                            ),
+                    ),
             )
             .child(
-                // Content
+                // Content - scrollable area
                 div()
+                    .id("history-scroll-area")
                     .flex_1()
-                    .overflow_hidden()
-                    .child(
-                        if self.commits.is_empty() {
-                            v_flex()
-                                .size_full()
-                                .p_4()
-                                .items_center()
-                                .justify_center()
-                                .text_color(cx.theme().muted_foreground)
-                                .child(
-                                    Icon::new(IconName::Inbox)
-                                        .size(px(24.))
-                                        .text_color(cx.theme().muted_foreground),
-                                )
-                                .child(
-                                    div()
-                                        .text_xs()
-                                        .mt_2()
-                                        .child("No commits")
-                                )
-                                .into_any_element()
-                        } else {
-                            v_flex()
-                                .w_full()
-                                .children(self.commits.iter().enumerate().map(|(i, commit)| {
-                                    let is_selected = self.selected_commit == Some(i);
+                    .overflow_y_scroll()
+                    .track_scroll(&self.history_scroll_handle)
+                    .child(if self.commits.is_empty() {
+                        v_flex()
+                            .size_full()
+                            .p_4()
+                            .items_center()
+                            .justify_center()
+                            .text_color(cx.theme().muted_foreground)
+                            .child(
+                                Icon::new(IconName::Inbox)
+                                    .size(px(24.))
+                                    .text_color(cx.theme().muted_foreground),
+                            )
+                            .child(div().text_xs().mt_2().child("No commits"))
+                            .into_any_element()
+                    } else {
+                        v_flex()
+                            .w_full()
+                            .children(self.commits.iter().enumerate().map(|(i, commit)| {
+                                let is_selected = self.selected_commit == Some(i);
 
-                                    ListItem::new(format!("commit-{}", i))
-                                        .selected(is_selected)
-                                        .py(px(2.))
-                                        .on_click(cx.listener(
-                                            move |this, _: &gpui::ClickEvent, _window, cx| {
-                                                this.selected_commit = Some(i);
-                                                this.load_commit_diffs(i, cx);
-                                                cx.notify();
-                                            },
-                                        ))
-                                        .child(
-                                            v_flex()
-                                                .w_full()
-                                                .gap_1()
-                                                .child(
-                                                    h_flex()
-                                                        .w_full()
-                                                        .justify_between()
-                                                        .child(
-                                                            div()
-                                                                .text_sm()
-                                                                .max_w(px(180.))
-                                                                .overflow_hidden()
-                                                                .child(commit.message.lines().next().unwrap_or(&commit.message).to_string()),
-                                                        )
-                                                        .child(
-                                                            div()
-                                                                .text_xs()
-                                                                .text_color(cx.theme().muted_foreground)
-                                                                .child(commit.short_id.clone()),
-                                                        ),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .text_xs()
-                                                        .text_color(cx.theme().muted_foreground)
-                                                        .child(format_timestamp(commit.time)),
-                                                ),
-                                        )
-                                }))
-                                .into_any_element()
-                        }
-                    )
+                                ListItem::new(format!("commit-{}", i))
+                                    .selected(is_selected)
+                                    .py(px(2.))
+                                    .on_click(cx.listener(
+                                        move |this, _: &gpui::ClickEvent, _window, cx| {
+                                            this.selected_commit = Some(i);
+                                            this.load_commit_diffs(i, cx);
+                                            cx.notify();
+                                        },
+                                    ))
+                                    .child(
+                                        v_flex()
+                                            .w_full()
+                                            .gap_1()
+                                            .child(
+                                                h_flex()
+                                                    .w_full()
+                                                    .justify_between()
+                                                    .child(
+                                                        div()
+                                                            .text_sm()
+                                                            .max_w(px(180.))
+                                                            .overflow_hidden()
+                                                            .child(
+                                                                commit
+                                                                    .message
+                                                                    .lines()
+                                                                    .next()
+                                                                    .unwrap_or(&commit.message)
+                                                                    .to_string(),
+                                                            ),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .text_xs()
+                                                            .text_color(cx.theme().muted_foreground)
+                                                            .child(commit.short_id.clone()),
+                                                    ),
+                                            )
+                                            .child(
+                                                div()
+                                                    .text_xs()
+                                                    .text_color(cx.theme().muted_foreground)
+                                                    .child(format_timestamp(commit.time)),
+                                            ),
+                                    )
+                            }))
+                            .into_any_element()
+                    })
+                    .child(Scrollbar::vertical(&self.history_scroll_handle)),
             )
     }
 
@@ -549,7 +552,7 @@ impl ChangeologyApp {
                     .flex_1()
                     .border_b_1()
                     .border_color(cx.theme().border)
-                    .child(self.render_dirty_files(window, cx))
+                    .child(self.render_dirty_files(window, cx)),
             )
             .child(
                 // Staging section - middle 1/3
@@ -557,13 +560,11 @@ impl ChangeologyApp {
                     .flex_1()
                     .border_b_1()
                     .border_color(cx.theme().border)
-                    .child(self.render_staging_area(window, cx))
+                    .child(self.render_staging_area(window, cx)),
             )
             .child(
                 // History section - bottom 1/3
-                div()
-                    .flex_1()
-                    .child(self.render_history_panel(window, cx))
+                div().flex_1().child(self.render_history_panel(window, cx)),
             )
     }
 
@@ -574,9 +575,7 @@ impl ChangeologyApp {
     ) -> impl IntoElement {
         // Use the diff canvas view for displaying diffs
         // Wrap in a size_full div to ensure proper sizing
-        div()
-            .size_full()
-            .child(self.diff_canvas.clone())
+        div().size_full().child(self.diff_canvas.clone())
     }
 }
 
