@@ -190,6 +190,9 @@ impl ChangeologyApp {
                 state.set_items(items, cx);
             });
         }
+
+        // Load all dirty file diffs onto the canvas
+        self.load_all_dirty_diffs(cx);
     }
 
     fn refresh_staged_files(&mut self) {
@@ -208,6 +211,65 @@ impl ChangeologyApp {
             debug!("Refreshed history: {} commits", commits.len());
             self.commits = commits;
         }
+    }
+
+    /// Load diffs for all dirty (unstaged) files and display on canvas
+    fn load_all_dirty_diffs(&mut self, cx: &mut Context<Self>) {
+        let Some(repo) = &self.repository else {
+            warn!("No repository available");
+            return;
+        };
+
+        if self.dirty_files.is_empty() {
+            info!("No dirty files to load");
+            self.diff_canvas.update(cx, |canvas, cx| {
+                canvas.set_diffs(vec![], None, cx);
+            });
+            return;
+        }
+
+        info!("Loading diffs for {} dirty files", self.dirty_files.len());
+
+        let mut diffs = Vec::new();
+        let config = DiffConfig::default();
+
+        for entry in &self.dirty_files {
+            let file_path = &entry.path;
+
+            // Get HEAD version (empty string for new/untracked files)
+            let old_content = repo
+                .get_content_at_revision("HEAD", file_path)
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+
+            // Get working directory version (empty string for deleted files)
+            let new_content = repo
+                .get_working_content(file_path)
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+
+            // Compute diff
+            match config.diff(&old_content, &new_content) {
+                Ok(buffer_diff) => {
+                    diffs.push(FileDiff {
+                        path: file_path.clone(),
+                        old_content,
+                        new_content,
+                        buffer_diff,
+                    });
+                }
+                Err(e) => {
+                    warn!("Failed to compute diff for {}: {}", file_path, e);
+                }
+            }
+        }
+
+        info!("Loaded {} diffs for dirty files", diffs.len());
+        self.diff_canvas.update(cx, |canvas, cx| {
+            canvas.set_diffs(diffs, None, cx);
+        });
     }
 
     /// Load diff for a dirty (unstaged) file and display on canvas
@@ -391,7 +453,7 @@ impl ChangeologyApp {
                                 .on_click(cx.listener(
                                     move |this, _: &gpui::ClickEvent, _window, cx| {
                                         this.selected_dirty_file = Some(i);
-                                        this.load_dirty_file_diff(i, cx);
+                                        // TODO: Focus on this file's diff in the canvas
                                         cx.notify();
                                     },
                                 ))
