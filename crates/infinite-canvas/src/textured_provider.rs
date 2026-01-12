@@ -59,7 +59,6 @@ use gpui::{
 use std::collections::HashMap;
 use std::sync::Arc;
 
-#[cfg(any(target_os = "linux", target_os = "freebsd"))]
 use gpui::TexturedView;
 
 // Re-export ItemSizing from gpui
@@ -114,7 +113,6 @@ struct CanvasItemEntry {
     /// The TexturedView as a type-erased AnyView (for default rendering)
     view: AnyView,
     /// Closure to get the texture from the TexturedView entity (for zoom support)
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     texture_getter: TextureGetter,
 }
 

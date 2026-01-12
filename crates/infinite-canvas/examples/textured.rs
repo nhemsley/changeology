@@ -12,7 +12,7 @@
 //! Run with: RUST_LOG=info cargo run -p infinite-canvas --example textured
 
 use gpui::*;
-use infinite_canvas::textured_provider::TexturedCanvasItemsProvider;
+use infinite_canvas::prelude::*;
 use log::info;
 
 /// Background color for the canvas
@@ -251,19 +251,18 @@ impl TexturedCanvasView {
 impl Render for TexturedCanvasView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let viewport_size = size(px(1200.0), px(800.0)); // Approximate
+        let viewport_bounds = Bounds::new(point(px(0.0), px(0.0)), viewport_size);
         let items = self.provider.items();
-        let camera = &self.camera;
 
         // Collect rendered items
         let mut rendered_items: Vec<AnyElement> = Vec::new();
 
         for item in &items {
-            // Transform bounds by camera
-            let screen_bounds = transform_bounds(&item.bounds, camera);
+            // Transform bounds by camera using library method
+            let screen_bounds = self.camera.canvas_to_screen_bounds(item.bounds);
 
             // Simple culling - skip items outside viewport
-            let viewport_bounds = Bounds::new(point(px(0.0), px(0.0)), viewport_size);
-            if !bounds_intersect(&screen_bounds, &viewport_bounds) {
+            if !screen_bounds.intersects(&viewport_bounds) {
                 continue;
             }
 
@@ -301,8 +300,7 @@ impl Render for TexturedCanvasView {
                             event.position.x - this.last_mouse_pos.x,
                             event.position.y - this.last_mouse_pos.y,
                         );
-                        this.camera.offset.x += delta.x / this.camera.zoom;
-                        this.camera.offset.y += delta.y / this.camera.zoom;
+                        this.camera.pan(delta);
                         this.last_mouse_pos = event.position;
                         cx.notify();
                     }
@@ -312,20 +310,9 @@ impl Render for TexturedCanvasView {
             .on_scroll_wheel({
                 cx.listener(|this, event: &ScrollWheelEvent, _window, cx| {
                     let delta = event.delta.pixel_delta(px(1.0));
-                    let delta_y: f32 = delta.y.into();
-                    let zoom_factor = 1.0 + (delta_y / 100.0);
-                    let new_zoom = (this.camera.zoom * zoom_factor).clamp(0.1, 10.0);
-
-                    // Zoom centered on mouse position
-                    let mouse_pos = event.position;
-                    let canvas_x = (mouse_pos.x - this.camera.offset.x) / this.camera.zoom;
-                    let canvas_y = (mouse_pos.y - this.camera.offset.y) / this.camera.zoom;
-
-                    this.camera.zoom = new_zoom;
-
-                    this.camera.offset.x = mouse_pos.x - canvas_x * new_zoom;
-                    this.camera.offset.y = mouse_pos.y - canvas_y * new_zoom;
-
+                    let zoom_factor = 1.0 + f32::from(delta.y) / 100.0;
+                    this.camera
+                        .zoom_around(zoom_factor, event.position, 0.1, 10.0);
                     cx.notify();
                 })
             })
@@ -364,39 +351,4 @@ impl Render for TexturedCanvasView {
             // Render all items
             .children(rendered_items)
     }
-}
-
-// ============================================================================
-// Camera and helpers
-// ============================================================================
-
-#[derive(Clone)]
-struct Camera {
-    offset: Point<Pixels>,
-    zoom: f32,
-}
-
-impl Default for Camera {
-    fn default() -> Self {
-        Self {
-            offset: point(px(0.0), px(0.0)),
-            zoom: 1.0,
-        }
-    }
-}
-
-fn transform_bounds(bounds: &Bounds<Pixels>, camera: &Camera) -> Bounds<Pixels> {
-    let x = bounds.origin.x * camera.zoom + camera.offset.x;
-    let y = bounds.origin.y * camera.zoom + camera.offset.y;
-    let w = bounds.size.width * camera.zoom;
-    let h = bounds.size.height * camera.zoom;
-
-    Bounds::new(point(x, y), size(w, h))
-}
-
-fn bounds_intersect(a: &Bounds<Pixels>, b: &Bounds<Pixels>) -> bool {
-    a.origin.x < b.origin.x + b.size.width
-        && a.origin.x + a.size.width > b.origin.x
-        && a.origin.y < b.origin.y + b.size.height
-        && a.origin.y + a.size.height > b.origin.y
 }
