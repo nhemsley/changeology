@@ -27,15 +27,17 @@ pub use gpui::ItemSizing;
 // ============================================================================
 // Types
 // ============================================================================
-
 /// Type alias for the texture getter closure.
 type TextureGetter = Box<dyn Fn(&App) -> Option<Arc<RenderImage>> + Send + Sync>;
+
+/// Type alias for the size getter closure (to query measured size from TexturedView).
+type SizeGetter = Box<dyn Fn(&App) -> Option<Size<Pixels>> + Send + Sync>;
 
 /// Internal storage for a canvas item.
 struct CanvasItemEntry {
     /// Position on canvas (canvas space).
     origin: Point<Pixels>,
-    /// Size of the item.
+    /// Initial/estimated size of the item.
     size: Size<Pixels>,
     /// Z-index for ordering.
     z_index: i32,
@@ -44,6 +46,9 @@ struct CanvasItemEntry {
     /// Closure to get the texture (for zoom-scaled rendering).
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     texture_getter: TextureGetter,
+    /// Closure to get the measured size from the TexturedView.
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    size_getter: SizeGetter,
 }
 
 // ============================================================================
@@ -134,9 +139,14 @@ impl TexturedCanvasItemsProvider {
         });
 
         // Create a closure to get the texture from this entity
-        let entity_clone = entity.clone();
+        let entity_for_texture = entity.clone();
         let texture_getter: TextureGetter =
-            Box::new(move |cx: &App| entity_clone.read(cx).texture());
+            Box::new(move |cx: &App| entity_for_texture.read(cx).texture());
+
+        // Create a closure to get the measured size from the entity
+        let entity_for_size = entity.clone();
+        let size_getter: SizeGetter =
+            Box::new(move |cx: &App| entity_for_size.read(cx).measured_size());
 
         self.items.insert(
             id,
@@ -146,6 +156,7 @@ impl TexturedCanvasItemsProvider {
                 z_index: 0,
                 view: entity.into(),
                 texture_getter,
+                size_getter,
             },
         );
     }
@@ -250,9 +261,11 @@ impl TexturedCanvasItemsProvider {
                 TexturedView::with_options(sizing, gpui::RenderMode::Once, window, cx, render_fn)
             });
 
-            // Update BOTH view and texture_getter
-            let entity_clone = entity.clone();
-            item.texture_getter = Box::new(move |cx: &App| entity_clone.read(cx).texture());
+            // Update view, texture_getter, and size_getter
+            let entity_for_texture = entity.clone();
+            item.texture_getter = Box::new(move |cx: &App| entity_for_texture.read(cx).texture());
+            let entity_for_size = entity.clone();
+            item.size_getter = Box::new(move |cx: &App| entity_for_size.read(cx).measured_size());
             item.view = entity.into();
         }
     }
@@ -295,6 +308,30 @@ impl CanvasItemsProvider for TexturedCanvasItemsProvider {
             .collect()
     }
 
+    /// Get items with measured sizes (requires App context).
+    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+    fn items_with_context(&self, cx: &App) -> Vec<ItemDescriptor> {
+        self.items
+            .iter()
+            .map(|(id, item)| {
+                let measured = (item.size_getter)(cx);
+                let size = measured.unwrap_or(item.size);
+                log::debug!(
+                    "[TexturedProvider] Item '{}': initial={:?}, measured={:?}, using={:?}",
+                    id,
+                    item.size,
+                    measured,
+                    size
+                );
+                ItemDescriptor {
+                    id: id.clone(),
+                    bounds: Bounds::new(item.origin, size),
+                    z_index: item.z_index,
+                }
+            })
+            .collect()
+    }
+
     #[cfg(any(target_os = "linux", target_os = "freebsd"))]
     fn render_item(&self, id: &str, screen_bounds: Bounds<Pixels>, cx: &App) -> Option<AnyElement> {
         self.items.get(id).map(|item| {
@@ -307,6 +344,8 @@ impl CanvasItemsProvider for TexturedCanvasItemsProvider {
                     .top(screen_bounds.origin.y)
                     .w(screen_bounds.size.width)
                     .h(screen_bounds.size.height)
+                    .border_2()
+                    .border_color(gpui::rgb(0xff0000))
                     .child(img(texture).size_full().object_fit(ObjectFit::Fill))
                     .into_any_element()
             } else {
