@@ -11,6 +11,8 @@ use gpui::prelude::FluentBuilder;
 use gpui::*;
 use gpui_component::{h_flex, v_flex, ActiveTheme, Icon, IconName};
 use infinite_canvas::prelude::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use buffer_diff::{BufferDiff, DiffLineType};
 
@@ -25,38 +27,28 @@ pub struct FileDiff {
 
 /// A view that displays file diffs on an infinite canvas
 pub struct DiffCanvasView {
-    provider: TexturedCanvasItemsProvider,
-    camera: Camera,
+    provider: Rc<RefCell<TexturedCanvasItemsProvider>>,
     /// The diffs currently displayed
     diffs: Vec<FileDiff>,
     /// Commit info for display
     commit_info: Option<(String, String)>, // (short_hash, message)
-    /// Canvas options
-    options: CanvasOptions,
     /// Flag to indicate that items need to be synced to the provider
     needs_sync: bool,
 }
 
 impl DiffCanvasView {
     pub fn new(_window: &mut Window, _cx: &mut Context<Self>) -> Self {
-        let provider = TexturedCanvasItemsProvider::with_sizing(ItemSizing::FixedWidth {
-            width: px(500.0),
-            estimated_height: px(800.0),
-        });
-
-        // Configure canvas options
-        let options = CanvasOptions::new()
-            .min_zoom(0.1)
-            .max_zoom(3.0)
-            .zoom_speed(1.0)
-            .show_grid(false);
+        let provider = Rc::new(RefCell::new(TexturedCanvasItemsProvider::with_sizing(
+            ItemSizing::FixedWidth {
+                width: px(500.0),
+                estimated_height: px(800.0),
+            },
+        )));
 
         Self {
             provider,
-            camera: Camera::with_offset_and_zoom(point(px(50.0), px(50.0)), 1.0),
             diffs: Vec::new(),
             commit_info: None,
-            options,
             needs_sync: false,
         }
     }
@@ -72,9 +64,6 @@ impl DiffCanvasView {
         self.diffs = diffs;
         self.commit_info = commit_info;
         self.needs_sync = true;
-
-        // Reset camera to show content
-        self.camera = Camera::with_offset_and_zoom(point(px(50.0), px(50.0)), 1.0);
     }
 
     /// Sync the provider items with the current diffs.
@@ -86,7 +75,7 @@ impl DiffCanvasView {
         self.needs_sync = false;
 
         // Clear existing items
-        self.provider.clear();
+        self.provider.borrow_mut().clear();
 
         // Layout diffs in a grid pattern
         let card_width = 500.0;
@@ -109,7 +98,7 @@ impl DiffCanvasView {
             };
 
             let diff_clone = diff.clone();
-            self.provider.add_item(
+            self.provider.borrow_mut().add_item(
                 format!("diff-{}", i),
                 point(px(x), px(y)),
                 window,
@@ -308,7 +297,7 @@ enum DiffLineKind {
 
 impl Render for DiffCanvasView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        // If no content, show placeholder (skip all provider operations)
+        // If no content, show placeholder
         if !self.has_content() {
             return div()
                 .size_full()
@@ -340,31 +329,6 @@ impl Render for DiffCanvasView {
         // Sync items if diffs have changed (now we have window access)
         self.sync_items_if_needed(window, cx);
 
-        let viewport = window.viewport_size();
-        let items = self.provider.items();
-        let camera = self.camera;
-
-        // Collect rendered items
-        let mut rendered_items: Vec<AnyElement> = Vec::new();
-
-        for item in &items {
-            // Transform bounds by camera
-            let screen_bounds = camera.canvas_to_screen_bounds(item.bounds);
-
-            // Simple culling - skip items outside viewport
-            let viewport_bounds = Bounds::new(point(px(0.0), px(0.0)), viewport);
-            if !bounds_intersect(&screen_bounds, &viewport_bounds) {
-                continue;
-            }
-
-            // Render the item at its transformed position (with proper zoom scaling)
-            // The new API handles texture state internally via TexturedView
-            if let Some(element) = self.provider.render_item_at(&item.id, screen_bounds, cx) {
-                rendered_items.push(element);
-            }
-        }
-
-        // Build the canvas with controls
         let commit_info = self.commit_info.clone();
 
         div()
@@ -372,13 +336,15 @@ impl Render for DiffCanvasView {
             .relative()
             .bg(cx.theme().background)
             .overflow_hidden()
-            // Canvas area
+            // Canvas - using InfiniteCanvas like the textured example
             .child(
-                div()
-                    .id("diff-canvas")
-                    .size_full()
-                    .relative()
-                    .children(rendered_items),
+                InfiniteCanvas::new("diff-canvas", self.provider.clone()).options(
+                    CanvasOptions::new()
+                        .min_zoom(0.1)
+                        .max_zoom(3.0)
+                        .zoom_speed(2.0)
+                        .show_grid(true),
+                ),
             )
             // Controls overlay - commit info
             .child(div().absolute().top_3().left_3().flex().gap_2().when_some(
@@ -395,19 +361,6 @@ impl Render for DiffCanvasView {
                     )
                 },
             ))
-            // Zoom indicator
-            .child(
-                div()
-                    .absolute()
-                    .bottom_3()
-                    .right_3()
-                    .px_3()
-                    .py_1()
-                    .bg(cx.theme().muted.opacity(0.9))
-                    .rounded_md()
-                    .text_sm()
-                    .child(format!("{:.0}%", self.camera.zoom * 100.0)),
-            )
             // Help text
             .child(
                 div()
@@ -424,12 +377,4 @@ impl Render for DiffCanvasView {
             )
             .into_any_element()
     }
-}
-
-/// Check if two bounds intersect
-fn bounds_intersect(a: &Bounds<Pixels>, b: &Bounds<Pixels>) -> bool {
-    a.origin.x < b.origin.x + b.size.width
-        && a.origin.x + a.size.width > b.origin.x
-        && a.origin.y < b.origin.y + b.size.height
-        && a.origin.y + a.size.height > b.origin.y
 }
