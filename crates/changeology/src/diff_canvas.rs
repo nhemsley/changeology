@@ -27,8 +27,6 @@ pub struct FileDiff {
 pub struct DiffCanvasView {
     provider: TexturedCanvasItemsProvider,
     camera: Camera,
-    is_panning: bool,
-    last_mouse_pos: Point<Pixels>,
     /// The diffs currently displayed
     diffs: Vec<FileDiff>,
     /// Commit info for display
@@ -56,8 +54,6 @@ impl DiffCanvasView {
         Self {
             provider,
             camera: Camera::with_offset_and_zoom(point(px(50.0), px(50.0)), 1.0),
-            is_panning: false,
-            last_mouse_pos: point(px(0.0), px(0.0)),
             diffs: Vec::new(),
             commit_info: None,
             options,
@@ -370,7 +366,6 @@ impl Render for DiffCanvasView {
 
         // Build the canvas with controls
         let commit_info = self.commit_info.clone();
-        let options = self.options.clone();
 
         div()
             .size_full()
@@ -383,57 +378,7 @@ impl Render for DiffCanvasView {
                     .id("diff-canvas")
                     .size_full()
                     .relative()
-                    .children(rendered_items)
-                    // Middle mouse button pan - start
-                    .on_mouse_down(
-                        MouseButton::Middle,
-                        cx.listener(|this, event: &MouseDownEvent, _window, _cx| {
-                            this.is_panning = true;
-                            this.last_mouse_pos = event.position;
-                        }),
-                    )
-                    // Middle mouse button pan - end
-                    .on_mouse_up(
-                        MouseButton::Middle,
-                        cx.listener(|this, _: &MouseUpEvent, _window, _cx| {
-                            this.is_panning = false;
-                        }),
-                    )
-                    // Mouse move for panning
-                    .on_mouse_move(cx.listener(|this, event: &MouseMoveEvent, _window, cx| {
-                        if this.is_panning && event.pressed_button == Some(MouseButton::Middle) {
-                            let delta = point(
-                                event.position.x - this.last_mouse_pos.x,
-                                event.position.y - this.last_mouse_pos.y,
-                            );
-                            this.camera.pan(delta);
-                            this.last_mouse_pos = event.position;
-                            cx.notify();
-                        }
-                    }))
-                    // Scroll wheel zoom (centered on cursor)
-                    .on_scroll_wheel(cx.listener(
-                        move |this, event: &ScrollWheelEvent, _window, cx| {
-                            let delta = match event.delta {
-                                ScrollDelta::Lines(lines) => lines.y * 0.1,
-                                ScrollDelta::Pixels(pixels) => f32::from(pixels.y) * 0.001,
-                            };
-
-                            // Calculate zoom factor (positive delta = zoom in, negative = zoom out)
-                            // Note: delta sign is reversed from default to match natural scroll expectation
-                            let zoom_factor = 1.0 + delta * options.zoom_speed;
-
-                            // Use Camera::zoom_around to zoom centered on cursor position
-                            this.camera.zoom_around(
-                                zoom_factor,
-                                event.position,
-                                options.min_zoom,
-                                options.max_zoom,
-                            );
-
-                            cx.notify();
-                        },
-                    )),
+                    .children(rendered_items),
             )
             // Controls overlay - commit info
             .child(div().absolute().top_3().left_3().flex().gap_2().when_some(
