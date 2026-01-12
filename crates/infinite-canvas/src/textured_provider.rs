@@ -344,8 +344,6 @@ impl CanvasItemsProvider for TexturedCanvasItemsProvider {
                     .top(screen_bounds.origin.y)
                     .w(screen_bounds.size.width)
                     .h(screen_bounds.size.height)
-                    .border_2()
-                    .border_color(gpui::rgb(0xff0000))
                     .child(img(texture).size_full().object_fit(ObjectFit::Fill))
                     .into_any_element()
             } else {
