@@ -1,61 +1,59 @@
 //! Infinite Canvas for GPUI
 //!
-//! A pannable, zoomable canvas component for GPUI that can display and layout
-//! rectangular objects on an infinite 2D plane.
+//! A pannable, zoomable canvas component for GPUI that displays items
+//! from a `CanvasItemsProvider`.
 //!
-//! # Core Concepts
+//! # Architecture
 //!
-//! - **Camera**: Controls the viewport position and zoom level
-//! - **Canvas**: The main component that renders items with pan/zoom
-//! - **CanvasItem**: Rectangular objects positioned on the canvas
-//! - **Layout**: Algorithms for arranging items (grid, tree, force-directed, etc.)
+//! - **`InfiniteCanvas`** - The main canvas component that handles camera, events, and rendering
+//! - **`CanvasItemsProvider`** - Trait for providing items to the canvas
+//! - **`TexturedCanvasItemsProvider`** - Provider that renders items as zoomable textures
+//! - **`Camera`** - Viewport state (offset, zoom) with coordinate transforms
+//! - **`CanvasOptions`** - Configuration for zoom limits, grid, etc.
 //!
 //! # Example
 //!
-//! ```no_run
+//! ```ignore
 //! use infinite_canvas::prelude::*;
 //! use gpui::*;
 //!
-//! // Create a canvas with some items
-//! let canvas = InfiniteCanvas::new("my-canvas")
-//!     .items(vec![
-//!         CanvasItem::new("item-1", bounds(point(px(0.), px(0.)), size(px(100.), px(80.)))),
-//!         CanvasItem::new("item-2", bounds(point(px(150.), px(0.)), size(px(100.), px(80.)))),
-//!     ]);
+//! // Create a provider and add items
+//! let mut provider = TexturedCanvasItemsProvider::new();
+//! provider.add_item("card-1", point(px(0.0), px(0.0)), window, cx, || {
+//!     div().p_4().bg(rgb(0x3498db)).child("Hello!")
+//! });
+//!
+//! // Create the canvas with the provider
+//! let canvas = InfiniteCanvas::new("my-canvas", provider)
+//!     .options(CanvasOptions::new().show_grid(true));
 //! ```
 
 mod camera;
 mod canvas;
-mod item;
-pub mod layout;
 mod options;
-pub mod textured_provider;
+mod provider;
+mod textured_provider;
 
-pub use camera::*;
-pub use canvas::*;
-pub use item::*;
-pub use layout::*;
-pub use options::*;
-pub use textured_provider::*;
+pub use camera::Camera;
+pub use canvas::{CanvasElement, InfiniteCanvas, SharedProvider};
+pub use options::{
+    CameraConstraints, CanvasOptions, ConstraintBehavior, ConstraintBounds, WheelBehavior,
+};
+pub use provider::{CanvasItemsProvider, ItemDescriptor, ItemId};
+pub use textured_provider::{ItemSizing, TexturedCanvasItemsProvider};
 
-/// Re-export commonly used types
+/// Re-export commonly used types.
 pub mod prelude {
     pub use crate::camera::Camera;
-    pub use crate::canvas::InfiniteCanvas;
-    pub use crate::item::{CanvasItem, ItemId};
-    pub use crate::layout::{GridLayout, Layout, TreeLayout};
+    pub use crate::canvas::{InfiniteCanvas, SharedProvider};
     pub use crate::options::CanvasOptions;
-    pub use crate::textured_provider::{
-        CanvasItemDescriptor, CanvasItemElement, CanvasItemId, TextureState,
-        TexturedCanvasItemsProvider,
-    };
-    // Re-export ItemSizing from gpui for convenient API access
-    pub use gpui::ItemSizing;
+    pub use crate::provider::{CanvasItemsProvider, ItemDescriptor, ItemId};
+    pub use crate::textured_provider::{ItemSizing, TexturedCanvasItemsProvider};
 }
 
 /// Initialize the infinite canvas component.
 ///
 /// Call this at your application's entry point after initializing gpui-component.
 pub fn init(_cx: &mut gpui::App) {
-    // Reserved for future initialization needs (e.g., registering actions)
+    // Reserved for future initialization needs
 }

@@ -1,55 +1,94 @@
 # Infinite Canvas
 
-An infinite canvas component for GPUI with pan, zoom, and layout algorithms.
+An infinite canvas component for GPUI with pan, zoom, and provider-based item rendering.
+
+## Architecture
+
+```
+InfiniteCanvas
+├── Camera (built-in, handles pan/zoom/coordinate transforms)
+├── CanvasOptions (grid, zoom limits, speeds, etc.)
+└── provider: impl CanvasItemsProvider
+    ├── TexturedCanvasItemsProvider (renders items as zoomable textures)
+    └── (future) RenderedCanvasItemsProvider (renders items directly)
+```
 
 ## Features
 
-- **Pan & Zoom**: Smooth camera controls with mouse wheel zoom and drag-to-pan
+- **Pan & Zoom**: Built-in camera controls with middle-mouse drag to pan and scroll wheel to zoom
 - **Coordinate Systems**: Automatic conversion between screen space and canvas space
-- **Layout Algorithms**: Built-in layouts for arranging items:
-  - Grid layout
-  - Tree layout (top-down, left-to-right, bottom-up, right-to-left)
-  - Pack layout (bin packing for variable-sized items)
+- **Provider-based Items**: Pluggable item providers for different rendering strategies
+- **Textured Rendering**: Items rendered as textures for smooth zooming (Linux/FreeBSD)
 - **Background Grid**: Optional configurable grid display
 - **Viewport Culling**: Only visible items are rendered for performance
-
-## Installation
-
-Add to your `Cargo.toml`:
-
-```toml
-[dependencies]
-infinite-canvas = { path = "../infinite-canvas" }
-```
 
 ## Quick Start
 
 ```rust
-use infinite_canvas::{InfiniteCanvas, CanvasItem, Camera, CanvasOptions};
+use infinite_canvas::prelude::*;
 use gpui::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
-// Create items to display on the canvas
-let items = vec![
-    CanvasItem::new("item-1", Bounds::new(point(px(0.), px(0.)), size(px(100.), px(80.)))),
-    CanvasItem::new("item-2", Bounds::new(point(px(150.), px(0.)), size(px(100.), px(80.)))),
-];
+// Create a provider (wrapped in Rc<RefCell<>> for sharing)
+let provider = Rc::new(RefCell::new(
+    TexturedCanvasItemsProvider::with_sizing(ItemSizing::FixedWidth {
+        width: px(280.0),
+        estimated_height: px(150.0),
+    })
+));
 
-// Create the canvas
-let canvas = InfiniteCanvas::new("my-canvas")
-    .camera(Camera::default())
-    .options(CanvasOptions::new().show_grid(true))
-    .items(items);
+// Add items to the provider
+provider.borrow_mut().add_item(
+    "card-1",
+    point(px(50.0), px(50.0)),
+    window,
+    cx,
+    || div().p_4().bg(rgb(0x3498db)).child("Hello!")
+);
+
+// Create the canvas with the provider
+let canvas = InfiniteCanvas::new("my-canvas", provider.clone())
+    .options(CanvasOptions::new().show_grid(true));
 ```
 
-## Core Concepts
+## Core Types
 
-### Camera
+### `InfiniteCanvas<P>`
 
-The `Camera` controls the viewport into the infinite canvas:
+The main canvas component. Takes a `SharedProvider<P>` and handles:
+- Camera state management (persisted across renders)
+- Pan/zoom input handling
+- Grid rendering
+- Item culling and rendering via the provider
+
+### `CanvasItemsProvider` Trait
+
+Implement this trait to create custom item providers:
 
 ```rust
-use infinite_canvas::Camera;
+pub trait CanvasItemsProvider {
+    /// Get descriptors for all items (id, bounds, z_index)
+    fn items(&self) -> Vec<ItemDescriptor>;
+    
+    /// Render an item at the given screen bounds
+    fn render_item(&self, id: &str, screen_bounds: Bounds<Pixels>, cx: &App) -> Option<AnyElement>;
+}
+```
 
+### `TexturedCanvasItemsProvider`
+
+Built-in provider that renders items as textures using GPUI's `TexturedView`:
+- Items are rendered once to a texture
+- Textures scale smoothly when zooming
+- Async rendering doesn't block the UI
+- Platform support: Linux/FreeBSD (other platforms show placeholders)
+
+### `Camera`
+
+Viewport state with coordinate transforms:
+
+```rust
 let mut camera = Camera::default();
 
 // Pan the camera
@@ -58,101 +97,23 @@ camera.pan(point(px(10.), px(20.)));
 // Zoom around a point (e.g., cursor position)
 camera.zoom_around(1.1, cursor_position, 0.1, 8.0);
 
-// Convert between coordinate systems
+// Convert coordinates
 let canvas_point = camera.screen_to_canvas(screen_point);
-let screen_point = camera.canvas_to_screen(canvas_point);
+let screen_bounds = camera.canvas_to_screen_bounds(canvas_bounds);
 ```
 
-### Canvas Items
+### `CanvasOptions`
 
-Items are rectangular objects placed on the canvas:
-
-```rust
-use infinite_canvas::{CanvasItem, ItemId};
-
-// Simple item with no data
-let item = CanvasItem::new("my-item", bounds);
-
-// Item with associated data
-let item = CanvasItem::with_data("my-item", bounds, MyData { ... });
-
-// Item properties
-item.with_selected(true)
-    .with_z_index(10)
-    .with_visible(true);
-```
-
-### Layout Algorithms
-
-#### Grid Layout
-
-Arrange items in a regular grid:
+Configuration for canvas behavior:
 
 ```rust
-use infinite_canvas::layout::{GridLayout, Layout};
-
-let layout = GridLayout::new()
-    .columns(4)
-    .cell_size(size(px(100.), px(100.)))
-    .gap(px(10.));
-
-layout.apply(&mut items);
-```
-
-#### Tree Layout
-
-Hierarchical tree arrangement:
-
-```rust
-use infinite_canvas::layout::{TreeLayout, TreeLayoutStyle, TreeNode};
-
-let layout = TreeLayout::new()
-    .style(TreeLayoutStyle::TopDown)
-    .node_spacing(px(20.))
-    .level_spacing(px(60.));
-
-let mut tree = TreeNode::with_children(root_item, vec![
-    TreeNode::new(child1),
-    TreeNode::new(child2),
-]);
-
-layout.apply_tree(&mut tree);
-```
-
-#### Pack Layout
-
-Bin packing for variable-sized items:
-
-```rust
-use infinite_canvas::layout::{PackLayout, Layout};
-
-let layout = PackLayout::new(px(800.))
-    .padding(px(10.));
-
-layout.apply(&mut items);
-```
-
-### Canvas Options
-
-Configure canvas behavior:
-
-```rust
-use infinite_canvas::{CanvasOptions, WheelBehavior};
-
 let options = CanvasOptions::new()
     .min_zoom(0.1)
     .max_zoom(8.0)
     .zoom_speed(1.0)
-    .pan_speed(1.0)
     .show_grid(true)
     .grid_size(px(20.))
     .wheel_behavior(WheelBehavior::Zoom);
-```
-
-## Running the Example
-
-```bash
-cargo run --example basic
 ```
 
 ## Controls
@@ -162,15 +123,19 @@ cargo run --example basic
 | Scroll wheel | Zoom in/out (centered on cursor) |
 | Middle-click drag | Pan canvas |
 
-## Architecture
+## Running the Example
 
-The crate is structured as follows:
+```bash
+cargo run -p infinite-canvas --example textured
+```
+
+## Module Structure
 
 - `camera.rs` - Camera state and coordinate conversion
 - `canvas.rs` - Main canvas component and rendering
-- `item.rs` - Canvas items and collections
-- `layout.rs` - Layout algorithms
 - `options.rs` - Configuration options
+- `provider.rs` - `CanvasItemsProvider` trait
+- `textured_provider.rs` - Textured items provider implementation
 
 ## License
 

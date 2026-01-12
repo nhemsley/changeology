@@ -50,21 +50,6 @@ impl Camera {
     }
 
     /// Convert a point from screen space to canvas space.
-    ///
-    /// Screen space is relative to the viewport's top-left corner.
-    /// Canvas space is the coordinate system of the infinite canvas.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use infinite_canvas::Camera;
-    /// use gpui::{Point, point, px};
-    ///
-    /// let camera = Camera::with_offset_and_zoom(point(px(100.), px(50.)), 2.0);
-    /// let screen_point = point(px(200.), px(150.));
-    /// let canvas_point = camera.screen_to_canvas(screen_point);
-    /// // canvas_point = ((200 - 100) / 2, (150 - 50) / 2) = (50, 50)
-    /// ```
     pub fn screen_to_canvas(&self, screen_point: Point<Pixels>) -> Point<Pixels> {
         Point::new(
             (screen_point.x - self.offset.x) / self.zoom,
@@ -73,21 +58,6 @@ impl Camera {
     }
 
     /// Convert a point from canvas space to screen space.
-    ///
-    /// Canvas space is the coordinate system of the infinite canvas.
-    /// Screen space is relative to the viewport's top-left corner.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use infinite_canvas::Camera;
-    /// use gpui::{Point, point, px};
-    ///
-    /// let camera = Camera::with_offset_and_zoom(point(px(100.), px(50.)), 2.0);
-    /// let canvas_point = point(px(50.), px(50.));
-    /// let screen_point = camera.canvas_to_screen(canvas_point);
-    /// // screen_point = (50 * 2 + 100, 50 * 2 + 50) = (200, 150)
-    /// ```
     pub fn canvas_to_screen(&self, canvas_point: Point<Pixels>) -> Point<Pixels> {
         Point::new(
             canvas_point.x * self.zoom + self.offset.x,
@@ -118,9 +88,6 @@ impl Camera {
     }
 
     /// Get the visible canvas bounds for a given viewport size.
-    ///
-    /// Returns the bounds in canvas space that are currently visible
-    /// within the viewport.
     pub fn visible_canvas_bounds(&self, viewport_size: Size<Pixels>) -> Bounds<Pixels> {
         let origin = self.screen_to_canvas(Point::default());
         let size = Size::new(
@@ -146,13 +113,6 @@ impl Camera {
     ///
     /// This is typically used for scroll-wheel zooming where the cursor
     /// position should remain at the same canvas location after zooming.
-    ///
-    /// # Arguments
-    ///
-    /// * `factor` - The zoom factor (e.g., 1.1 to zoom in 10%, 0.9 to zoom out 10%)
-    /// * `anchor` - The screen point that should remain fixed during zoom
-    /// * `min_zoom` - Minimum allowed zoom level
-    /// * `max_zoom` - Maximum allowed zoom level
     pub fn zoom_around(
         &mut self,
         factor: f32,
@@ -160,20 +120,15 @@ impl Camera {
         min_zoom: f32,
         max_zoom: f32,
     ) {
-        // Get the canvas point under the anchor before zooming
         let canvas_point = self.screen_to_canvas(anchor);
-
-        // Apply the zoom factor with clamping
         let new_zoom = (self.zoom * factor).clamp(min_zoom, max_zoom);
 
-        // If zoom didn't change (hit limits), don't adjust offset
         if (new_zoom - self.zoom).abs() < f32::EPSILON {
             return;
         }
 
         self.zoom = new_zoom;
 
-        // Adjust offset so the canvas point stays under the anchor
         let new_screen_point = self.canvas_to_screen(canvas_point);
         self.offset.x += anchor.x - new_screen_point.x;
         self.offset.y += anchor.y - new_screen_point.y;
@@ -198,8 +153,6 @@ impl Camera {
     }
 
     /// Zoom to fit the given canvas bounds within the viewport.
-    ///
-    /// Adds optional padding around the bounds.
     pub fn zoom_to_fit(
         &mut self,
         canvas_bounds: Bounds<Pixels>,
@@ -225,14 +178,12 @@ impl Camera {
             return;
         }
 
-        // Calculate zoom to fit both dimensions
         let zoom_x = avail_w / bounds_width;
         let zoom_y = avail_h / bounds_height;
         let zoom = zoom_x.min(zoom_y).clamp(min_zoom, max_zoom);
 
         self.zoom = zoom;
 
-        // Center the bounds in the viewport
         let bounds_center = Point::new(
             canvas_bounds.origin.x + canvas_bounds.size.width / 2.0,
             canvas_bounds.origin.y + canvas_bounds.size.height / 2.0,
@@ -248,7 +199,6 @@ impl Camera {
                 return step;
             }
         }
-        // Return current zoom if at max
         self.zoom
     }
 
@@ -259,7 +209,6 @@ impl Camera {
                 return step;
             }
         }
-        // Return current zoom if at min
         self.zoom
     }
 }

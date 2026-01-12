@@ -4542,15 +4542,10 @@ dependencies = [
 name = "infinite-canvas"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "env_logger",
- "flume",
  "gpui",
- "image",
  "log",
- "rand 0.8.5",
  "serde",
- "smallvec",
 ]
 
 [[package]]
