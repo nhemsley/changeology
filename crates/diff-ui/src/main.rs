@@ -3,15 +3,8 @@
 //! This is the entry point for the diff-ui application.
 //! It creates a window and displays a diff view.
 
-use gpui::{
-    prelude::*, px, size, App, Application, Bounds,
-    WindowBounds, WindowOptions,
-};
-
-mod diff_text_view;
-mod theme;
-
-use diff_text_view::{DiffTextView, RenderMode};
+use diff_ui::{DiffTextView, RenderMode};
+use gpui::{prelude::*, px, size, App, Application, Bounds, WindowBounds, WindowOptions};
 
 fn main() {
     Application::new().run(|cx: &mut App| {
@@ -70,7 +63,10 @@ fn main() {
                 // To use full buffer rendering instead, uncomment the line below:
                 // cx.new(|_| DiffTextView::new(&old_text, &new_text).with_render_mode(RenderMode::FullBuffer))
 
-                cx.new(|_| DiffTextView::new(&old_text, &new_text).with_render_mode(RenderMode::Virtualized))
+                cx.new(|_| {
+                    DiffTextView::new(&old_text, &new_text)
+                        .with_render_mode(RenderMode::Virtualized)
+                })
             },
         )
         .unwrap();

@@ -21,7 +21,7 @@ use crate::menu::*;
 use crate::panels::file_tree;
 use crate::sidebar;
 use crate::watcher::{DataSourceKind, RepoWatcher};
-use buffer_diff::DiffConfig;
+
 use git::{Commit, Repository};
 
 pub struct ChangeologyApp {
@@ -237,7 +237,6 @@ impl ChangeologyApp {
         info!("Loading diffs for {} dirty files", self.dirty_files.len());
 
         let mut diffs = Vec::new();
-        let config = DiffConfig::default();
 
         for entry in &self.dirty_files {
             let file_path = &entry.path;
@@ -256,20 +255,12 @@ impl ChangeologyApp {
                 .flatten()
                 .unwrap_or_default();
 
-            // Compute diff
-            match config.diff(&old_content, &new_content) {
-                Ok(buffer_diff) => {
-                    diffs.push(FileDiff {
-                        path: file_path.clone(),
-                        old_content,
-                        new_content,
-                        buffer_diff,
-                    });
-                }
-                Err(e) => {
-                    warn!("Failed to compute diff for {}: {}", file_path, e);
-                }
-            }
+            // DiffTextView computes its own diff, so we just need old and new content
+            diffs.push(FileDiff {
+                path: file_path.clone(),
+                old_content,
+                new_content,
+            });
         }
 
         info!("Loaded {} diffs for dirty files", diffs.len());
@@ -313,26 +304,17 @@ impl ChangeologyApp {
             new_content.len()
         );
 
-        // Compute diff
-        let config = DiffConfig::default();
-        match config.diff(&old_content, &new_content) {
-            Ok(buffer_diff) => {
-                let diffs = vec![FileDiff {
-                    path: file_path.clone(),
-                    old_content,
-                    new_content,
-                    buffer_diff,
-                }];
+        // DiffTextView computes its own diff, so we just need old and new content
+        let diffs = vec![FileDiff {
+            path: file_path.clone(),
+            old_content,
+            new_content,
+        }];
 
-                self.diff_canvas.update(cx, |canvas, cx| {
-                    canvas.set_diffs(diffs, None, cx); // None = no commit info for dirty files
-                });
-                info!("Loaded diff for dirty file: {}", file_path);
-            }
-            Err(e) => {
-                warn!("Failed to compute diff for {}: {}", file_path, e);
-            }
-        }
+        self.diff_canvas.update(cx, |canvas, cx| {
+            canvas.set_diffs(diffs, None, cx); // None = no commit info for dirty files
+        });
+        info!("Loaded diff for dirty file: {}", file_path);
     }
 
     fn load_commit_diffs(&mut self, commit_index: usize, cx: &mut Context<Self>) {
@@ -363,16 +345,12 @@ impl ChangeologyApp {
                             .flatten()
                             .unwrap_or_default();
 
-                        // Compute the BufferDiff
-                        let config = DiffConfig::default();
-                        if let Ok(buffer_diff) = config.diff(&old_content, &new_content) {
-                            self.commit_diffs.push(FileDiff {
-                                path: file_path,
-                                old_content,
-                                new_content,
-                                buffer_diff,
-                            });
-                        }
+                        // DiffTextView computes its own diff, so we just need old and new content
+                        self.commit_diffs.push(FileDiff {
+                            path: file_path,
+                            old_content,
+                            new_content,
+                        });
                     }
                 }
             }

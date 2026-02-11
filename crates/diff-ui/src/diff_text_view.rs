@@ -5,8 +5,8 @@
 
 use buffer_diff::{DiffHunkStatus, DiffLineType, TextDiff};
 use gpui::{
-    div, prelude::*, px, Context, IntoElement, Render, SharedString, Window,
-    uniform_list,
+    div, prelude::*, px, uniform_list, AnyElement, Context, IntoElement, Render, SharedString,
+    Window,
 };
 
 pub use crate::theme::DiffTheme;
@@ -113,6 +113,15 @@ impl DiffTextView {
         self
     }
 
+    /// Render as an element without requiring a View context.
+    /// Useful for embedding diff views in closures or other non-View contexts.
+    pub fn render_as_element(&self) -> AnyElement {
+        match self.render_mode {
+            RenderMode::Virtualized => self.render_virtualized().into_any_element(),
+            RenderMode::FullBuffer => self.render_full_buffer().into_any_element(),
+        }
+    }
+
     /// Update the diff with new text
     #[allow(dead_code)]
     pub fn update(&mut self, old_text: &str, new_text: &str) {
@@ -133,7 +142,8 @@ impl DiffTextView {
             Err(_) => {
                 // If diff fails, just show the new text as-is
                 for line in self.new_text.lines() {
-                    self.display_lines.push(DiffDisplayLine::unchanged(line.to_string()));
+                    self.display_lines
+                        .push(DiffDisplayLine::unchanged(line.to_string()));
                 }
                 return;
             }
@@ -191,8 +201,9 @@ impl DiffTextView {
                             DiffLineType::Both => {
                                 // Line exists in both - show as unchanged from new text
                                 if new_idx < new_lines.len() {
-                                    self.display_lines
-                                        .push(DiffDisplayLine::unchanged(new_lines[new_idx].to_string()));
+                                    self.display_lines.push(DiffDisplayLine::unchanged(
+                                        new_lines[new_idx].to_string(),
+                                    ));
                                 }
                                 old_idx += 1;
                                 new_idx += 1;
@@ -200,16 +211,18 @@ impl DiffTextView {
                             DiffLineType::OldOnly => {
                                 // Line only in old - show as deleted
                                 if old_idx < old_lines.len() {
-                                    self.display_lines
-                                        .push(DiffDisplayLine::deleted(old_lines[old_idx].to_string()));
+                                    self.display_lines.push(DiffDisplayLine::deleted(
+                                        old_lines[old_idx].to_string(),
+                                    ));
                                 }
                                 old_idx += 1;
                             }
                             DiffLineType::NewOnly => {
                                 // Line only in new - show as added
                                 if new_idx < new_lines.len() {
-                                    self.display_lines
-                                        .push(DiffDisplayLine::added(new_lines[new_idx].to_string()));
+                                    self.display_lines.push(DiffDisplayLine::added(
+                                        new_lines[new_idx].to_string(),
+                                    ));
                                 }
                                 new_idx += 1;
                             }
@@ -222,7 +235,8 @@ impl DiffTextView {
         // If no hunks were produced but we have text, show it unchanged
         if self.display_lines.is_empty() && !self.new_text.is_empty() {
             for line in self.new_text.lines() {
-                self.display_lines.push(DiffDisplayLine::unchanged(line.to_string()));
+                self.display_lines
+                    .push(DiffDisplayLine::unchanged(line.to_string()));
             }
         }
     }
@@ -274,11 +288,9 @@ impl DiffTextView {
             .border_1()
             .border_color(self.theme.border)
             .child(
-                uniform_list(
-                    "diff-lines",
-                    line_count,
-                    move |range, _window, _cx| {
-                        range.map(|idx| {
+                uniform_list("diff-lines", line_count, move |range, _window, _cx| {
+                    range
+                        .map(|idx| {
                             let line = &display_lines[idx];
 
                             // Add a prefix indicator for the line type
@@ -310,10 +322,10 @@ impl DiffTextView {
                                 .font_family("monospace")
                                 .text_sm()
                                 .child(content)
-                        }).collect::<Vec<_>>()
-                    },
-                )
-                .size_full()
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .size_full(),
             )
     }
 
@@ -331,7 +343,7 @@ impl DiffTextView {
                 self.display_lines
                     .iter()
                     .enumerate()
-                    .map(|(idx, line)| self.render_line(line, idx))
+                    .map(|(idx, line)| self.render_line(line, idx)),
             )
     }
 }

@@ -7,6 +7,7 @@
 //! - Middle mouse button: Pan the canvas
 //! - Scroll wheel: Zoom in/out (centered on cursor)
 
+use diff_ui::{DiffTextView, DiffTheme, RenderMode as DiffRenderMode};
 use gpui::prelude::FluentBuilder;
 use gpui::*;
 use gpui_component::{h_flex, v_flex, ActiveTheme, Icon, IconName};
@@ -14,15 +15,12 @@ use infinite_canvas::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use buffer_diff::{BufferDiff, DiffLineType};
-
 /// Diff data for a single file in a commit
 #[derive(Clone)]
 pub struct FileDiff {
     pub path: String,
     pub old_content: String,
     pub new_content: String,
-    pub buffer_diff: BufferDiff,
 }
 
 /// A view that displays file diffs on an infinite canvas
@@ -103,7 +101,7 @@ impl DiffCanvasView {
                 point(px(x), px(y)),
                 window,
                 cx,
-                move || Self::render_diff_card(&diff_clone),
+                move || render_diff_card(&diff_clone),
             );
         }
     }
@@ -111,175 +109,12 @@ impl DiffCanvasView {
     /// Estimate the height of a diff card based on content
     fn estimate_diff_height(diff: &FileDiff) -> f32 {
         let line_count = diff
-            .buffer_diff
-            .hunks()
-            .iter()
-            .fold(0, |acc, hunk| acc + hunk.line_types.len());
+            .old_content
+            .lines()
+            .count()
+            .max(diff.new_content.lines().count());
         // Header (40) + padding (16) + lines (18 each)
         40.0 + 16.0 + (line_count as f32 * 18.0)
-    }
-
-    /// Render a single diff as a card element
-    fn render_diff_card(diff: &FileDiff) -> AnyElement {
-        let path = diff.path.clone();
-        let old_lines: Vec<&str> = diff.old_content.lines().collect();
-        let new_lines: Vec<&str> = diff.new_content.lines().collect();
-        let hunks = diff.buffer_diff.hunks();
-
-        // Collect all diff lines
-        let mut diff_lines: Vec<(Option<usize>, Option<usize>, String, DiffLineKind)> = Vec::new();
-
-        for hunk in hunks.iter() {
-            let mut old_offset = 0;
-            let mut new_offset = 0;
-
-            for &line_type in hunk.line_types.iter() {
-                match line_type {
-                    DiffLineType::OldOnly => {
-                        let old_line_idx = hunk.old_range.start + old_offset;
-                        if let Some(line_content) = old_lines.get(old_line_idx) {
-                            diff_lines.push((
-                                Some(old_line_idx + 1),
-                                None,
-                                line_content.to_string(),
-                                DiffLineKind::Removed,
-                            ));
-                        }
-                        old_offset += 1;
-                    }
-                    DiffLineType::NewOnly => {
-                        let new_line_idx = hunk.new_range.start + new_offset;
-                        if let Some(line_content) = new_lines.get(new_line_idx) {
-                            diff_lines.push((
-                                None,
-                                Some(new_line_idx + 1),
-                                line_content.to_string(),
-                                DiffLineKind::Added,
-                            ));
-                        }
-                        new_offset += 1;
-                    }
-                    DiffLineType::Both => {
-                        let old_line_idx = hunk.old_range.start + old_offset;
-                        let new_line_idx = hunk.new_range.start + new_offset;
-                        if let Some(line_content) = old_lines.get(old_line_idx) {
-                            diff_lines.push((
-                                Some(old_line_idx + 1),
-                                Some(new_line_idx + 1),
-                                line_content.to_string(),
-                                DiffLineKind::Context,
-                            ));
-                        }
-                        old_offset += 1;
-                        new_offset += 1;
-                    }
-                }
-            }
-        }
-
-        // Build the card
-        div()
-            .flex()
-            .flex_col()
-            .bg(rgb(0x1e1e1e))
-            .rounded_lg()
-            .overflow_hidden()
-            .border_1()
-            .border_color(rgb(0x3c3c3c))
-            // File header
-            .child(
-                div()
-                    .w_full()
-                    .px_3()
-                    .py_2()
-                    .bg(rgb(0x2d2d2d))
-                    .border_b_1()
-                    .border_color(rgb(0x3c3c3c))
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .items_center()
-                            .child(div().text_sm().text_color(rgb(0x8b949e)).child("📄"))
-                            .child(
-                                div()
-                                    .text_sm()
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .text_color(rgb(0xe6edf3))
-                                    .child(path),
-                            ),
-                    ),
-            )
-            // Diff content
-            .child(
-                div()
-                    .w_full()
-                    .child(v_flex().w_full().children(diff_lines.into_iter().map(
-                        |(old_num, new_num, content, kind)| {
-                            Self::render_diff_line_element(old_num, new_num, &content, kind)
-                        },
-                    ))),
-            )
-            .into_any_element()
-    }
-
-    /// Render a single diff line
-    fn render_diff_line_element(
-        old_line_num: Option<usize>,
-        new_line_num: Option<usize>,
-        content: &str,
-        kind: DiffLineKind,
-    ) -> AnyElement {
-        let (bg_color, sign, text_color) = match kind {
-            DiffLineKind::Added => (rgb(0x1a3d2e), "+", rgb(0x3fb950)),
-            DiffLineKind::Removed => (rgb(0x3d1a1a), "-", rgb(0xf85149)),
-            DiffLineKind::Context => (rgb(0x1e1e1e), " ", rgb(0xcccccc)),
-        };
-
-        h_flex()
-            .w_full()
-            .bg(bg_color)
-            .px_2()
-            .py_0p5()
-            .child(
-                div()
-                    .w(px(35.))
-                    .text_xs()
-                    .text_color(rgb(0x6e7681))
-                    .child(format!(
-                        "{:>4}",
-                        old_line_num
-                            .map(|n| n.to_string())
-                            .unwrap_or_else(|| " ".to_string())
-                    )),
-            )
-            .child(
-                div()
-                    .w(px(35.))
-                    .text_xs()
-                    .text_color(rgb(0x6e7681))
-                    .child(format!(
-                        "{:>4}",
-                        new_line_num
-                            .map(|n| n.to_string())
-                            .unwrap_or_else(|| " ".to_string())
-                    )),
-            )
-            .child(
-                div()
-                    .w(px(15.))
-                    .text_xs()
-                    .text_color(text_color)
-                    .child(sign.to_string()),
-            )
-            .child(
-                div()
-                    .flex_1()
-                    .text_xs()
-                    .font_family("monospace")
-                    .text_color(text_color)
-                    .child(content.to_string()),
-            )
-            .into_any_element()
     }
 
     /// Check if the canvas has any content
@@ -288,11 +123,50 @@ impl DiffCanvasView {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum DiffLineKind {
-    Added,
-    Removed,
-    Context,
+/// Render a single diff as a card element using diff-ui's DiffTextView
+fn render_diff_card(diff: &FileDiff) -> AnyElement {
+    let path = diff.path.clone();
+
+    // Create the diff view using diff-ui
+    let diff_view = DiffTextView::new(&diff.old_content, &diff.new_content)
+        .with_theme(DiffTheme::dark())
+        .with_render_mode(DiffRenderMode::FullBuffer);
+
+    // Build the card with header and diff content
+    div()
+        .flex()
+        .flex_col()
+        .bg(rgb(0x1e1e1e))
+        .rounded_lg()
+        .overflow_hidden()
+        .border_1()
+        .border_color(rgb(0x3c3c3c))
+        // File header
+        .child(
+            div()
+                .w_full()
+                .px_3()
+                .py_2()
+                .bg(rgb(0x2d2d2d))
+                .border_b_1()
+                .border_color(rgb(0x3c3c3c))
+                .child(
+                    h_flex()
+                        .gap_2()
+                        .items_center()
+                        .child(div().text_sm().text_color(rgb(0x8b949e)).child("📄"))
+                        .child(
+                            div()
+                                .text_sm()
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(rgb(0xe6edf3))
+                                .child(path),
+                        ),
+                ),
+        )
+        // Diff content using DiffTextView
+        .child(div().w_full().flex_1().child(diff_view.render_as_element()))
+        .into_any_element()
 }
 
 impl Render for DiffCanvasView {

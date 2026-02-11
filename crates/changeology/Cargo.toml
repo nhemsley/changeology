@@ -11,6 +11,7 @@ path = "src/changeology.rs"
 [dependencies]
 # Workspace crates
 buffer-diff = { path = "../diff" }
+diff-ui = { path = "../diff-ui" }
 git = { path = "../git" }
 infinite-canvas = { path = "../infinite-canvas" }
 

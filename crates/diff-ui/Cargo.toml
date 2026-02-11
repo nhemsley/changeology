@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 publish = false
 
+[lib]
+name = "diff_ui"
+path = "src/lib.rs"
+
 [[bin]]
 name = "diff-ui"
 path = "src/main.rs"
