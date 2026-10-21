@@ -3,3 +3,5 @@ vendor/
 **/.claude/settings.local.json
 target/
 tmp
+
+gpui-infinite-canvas/
